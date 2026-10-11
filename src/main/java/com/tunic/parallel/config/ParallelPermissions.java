@@ -33,4 +33,9 @@ public final class ParallelPermissions {
     public static boolean bypassesModes(ServerPlayer player) {
         return Permissions.check(player, BYPASS_MODES, false);
     }
+
+    /** {@link #bypassesModes(ServerPlayer)} while the player is still connecting; see {@link #canUseCharacters}. */
+    public static boolean bypassesModes(NameAndId player) {
+        return Permissions.check(player, BYPASS_MODES, false).join();
+    }
 }

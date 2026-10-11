@@ -2,7 +2,9 @@ package com.tunic.parallel.network;
 
 import com.tunic.parallel.ParallelPlayers;
 import com.tunic.parallel.character.CharacterBundle;
+import com.tunic.parallel.character.CharacterMode;
 import com.tunic.parallel.character.CharacterSwap;
+import com.tunic.parallel.config.ParallelPermissions;
 import com.tunic.parallel.config.ServerConfig;
 import net.fabricmc.fabric.api.networking.v1.ServerConfigurationConnectionEvents;
 import net.fabricmc.fabric.api.networking.v1.ServerConfigurationNetworking;
@@ -13,7 +15,9 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.server.network.ConfigurationTask;
 import net.minecraft.server.network.ServerConfigurationPacketListenerImpl;
 import net.minecraft.server.players.NameAndId;
+import net.minecraft.world.level.storage.WorldData;
 import org.jspecify.annotations.NonNull;
+import org.jspecify.annotations.Nullable;
 
 import java.util.Set;
 import java.util.UUID;
@@ -63,7 +67,12 @@ public final class CharacterSync {
                 || !ServerConfigurationNetworking.canSend(listener, CharacterPayloads.Request.TYPE)) {
             return;
         }
-        listener.addTask(new AskForCharacter(player.id()));
+        // Which kind of world a character must be for, so the client can let the player pick one that fits.
+        WorldData data = server.getWorldData();
+        String worldMode = ServerConfig.get().enforceModes && !ParallelPermissions.bypassesModes(player)
+                ? CharacterMode.ofWorld(data.isHardcore(), data.getGameType(), data.isAllowCommands()).id()
+                : null;
+        listener.addTask(new AskForCharacter(player.id(), worldMode));
     }
 
     @SuppressWarnings("resource")
@@ -82,12 +91,12 @@ public final class CharacterSync {
         });
     }
 
-    private record AskForCharacter(UUID player) implements ConfigurationTask {
+    private record AskForCharacter(UUID player, @Nullable String worldMode) implements ConfigurationTask {
 
         @Override
         public void start(@NonNull Consumer<Packet<?>> connection) {
             ASKED.add(this.player);
-            connection.accept(ServerConfigurationNetworking.createClientboundPacket(new CharacterPayloads.Request()));
+            connection.accept(ServerConfigurationNetworking.createClientboundPacket(new CharacterPayloads.Request(this.worldMode)));
         }
 
         @Override

@@ -2,6 +2,10 @@ package com.tunic.parallel.client;
 
 import com.tunic.parallel.ParallelPlayers;
 import com.tunic.parallel.character.CharacterBundle;
+import com.tunic.parallel.character.CharacterMeta;
+import com.tunic.parallel.character.CharacterMode;
+import com.tunic.parallel.client.screen.CharactersScreen;
+import com.tunic.parallel.mixin.client.ClientCommonPacketListenerImplAccessor;
 import com.tunic.parallel.network.CharacterPayloads;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientConfigurationConnectionEvents;
@@ -10,6 +14,8 @@ import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.GenericMessageScreen;
+import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.network.Connection;
 import net.minecraft.network.chat.Component;
 import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
@@ -36,6 +42,11 @@ public final class ClientCharacterSync {
     private static long leaveDeadline;
     /** Set while the held-back disconnect runs, so it is not held back again. */
     private static boolean leaving;
+    /**
+     * The connection to a server that is waiting while the player picks a character to join it with. The
+     * "Connecting" screen normally keeps it going; while the character screen is up instead, this does.
+     */
+    private static @Nullable Connection choosingFor;
 
     private ClientCharacterSync() {
     }
@@ -49,6 +60,16 @@ public final class ClientCharacterSync {
             pendingLeave = null;
         });
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
+            Connection waiting = choosingFor;
+            if (waiting != null) {
+                // As the "Connecting" screen does: keep the connection going, and notice when it drops.
+                if (waiting.isConnected()) {
+                    waiting.tick();
+                } else {
+                    choosingFor = null;
+                    waiting.handleDisconnection();
+                }
+            }
             if (pendingLeave != null && System.nanoTime() - leaveDeadline > 0) {
                 LOGGER.warn("The server did not send the character's last save in time; leaving without it");
                 finishLeaving();
@@ -56,8 +77,8 @@ public final class ClientCharacterSync {
         });
 
         ClientConfigurationNetworking.registerGlobalReceiver(CharacterPayloads.Request.TYPE, (payload, context) ->
-                // Received on a network thread; the storage is read on the client thread.
-                context.client().execute(() -> context.responseSender().sendPacket(new CharacterPayloads.Upload(activeCharacter()))));
+                // Received on a network thread; the storage is read and screens are shown on the client thread.
+                context.client().execute(() -> answerRequest(payload, context)));
         ClientConfigurationNetworking.registerGlobalReceiver(CharacterPayloads.Result.TYPE, (payload, context) ->
                 context.client().execute(() -> {
                     playingAs = payload.playingAs();
@@ -106,6 +127,44 @@ public final class ClientCharacterSync {
     /** The character played on the connected server, if it is not singleplayer and one is being played. */
     public static Optional<UUID> playingAs() {
         return Optional.ofNullable(playingAs);
+    }
+
+    /**
+     * Sends the active character, if it can join the server. Otherwise the player first picks one that can,
+     * on the character screen with the others greyed out, or backs out and the connection is closed.
+     */
+    @SuppressWarnings("resource")
+    private static void answerRequest(CharacterPayloads.Request request, ClientConfigurationNetworking.Context context) {
+        CharacterMode world = CharacterMode.byId(request.worldMode());
+        if (world == null || activeCanJoin(world)) {
+            context.responseSender().sendPacket(new CharacterPayloads.Upload(activeCharacter()));
+            return;
+        }
+        Minecraft minecraft = context.client();
+        Connection connection = ((ClientCommonPacketListenerImplAccessor) context.packetListener()).parallel$connection();
+        Screen connecting = minecraft.gui.screen();
+        choosingFor = connection;
+        minecraft.gui.setScreen(new CharactersScreen(connecting, new CharactersScreen.WorldRequirement(world,
+                () -> {
+                    choosingFor = null;
+                    minecraft.gui.setScreen(connecting);
+                    context.responseSender().sendPacket(new CharacterPayloads.Upload(activeCharacter()));
+                },
+                () -> {
+                    choosingFor = null;
+                    minecraft.gui.setScreen(connecting);
+                    connection.disconnect(Component.translatable("parallel.characters.join_cancelled"));
+                })));
+    }
+
+    /** Whether the active character may join a world of this kind; the account always may. */
+    private static boolean activeCanJoin(CharacterMode world) {
+        CharacterMode mode = ParallelPlayers.activeCharacter().get()
+                .flatMap(ParallelPlayers.characters()::get)
+                .map(CharacterMeta::modeChoice)
+                .orElse(null);
+        // A character without a mode yet takes the mode of the first world it joins.
+        return mode == null || mode.canJoin(world);
     }
 
     private static @Nullable CharacterBundle activeCharacter() {

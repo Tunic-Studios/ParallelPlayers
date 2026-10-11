@@ -16,8 +16,9 @@ import java.util.UUID;
 /**
  * The messages that carry characters between client and server. While a player connects:
  * <ol>
- *   <li>the server asks for their character ({@link Request}),</li>
- *   <li>the client sends its active character, or nothing to play as the account ({@link Upload}),</li>
+ *   <li>the server asks for their character, saying what kind of world it is ({@link Request}),</li>
+ *   <li>the client sends its active character, or nothing to play as the account ({@link Upload}); if the
+ *       active character cannot join that kind of world, the player picks another one first,</li>
  *   <li>the server says which character the player will play as, with its own copy if that is newer
  *       ({@link Result}).</li>
  * </ol>
@@ -43,11 +44,18 @@ public final class CharacterPayloads {
         return new CustomPacketPayload.Type<>(Identifier.fromNamespaceAndPath(ParallelPlayers.MOD_ID, name));
     }
 
-    /** Server to client, while connecting: which character will you play as? */
-    public record Request() implements CustomPacketPayload {
+    /**
+     * Server to client, while connecting: which character will you play as?
+     *
+     * @param worldMode the id of the {@link com.tunic.parallel.character.CharacterMode} a character needs to join,
+     *                  or {@code null} when any character may (mode rules are off, or the player may bypass them)
+     */
+    public record Request(@Nullable String worldMode) implements CustomPacketPayload {
 
         public static final Type<Request> TYPE = payloadType("request_character");
-        public static final StreamCodec<FriendlyByteBuf, Request> STREAM_CODEC = StreamCodec.unit(new Request());
+        public static final StreamCodec<FriendlyByteBuf, Request> STREAM_CODEC = StreamCodec.of(
+                (buf, payload) -> buf.writeNullable(payload.worldMode(), FriendlyByteBuf::writeUtf),
+                buf -> new Request(buf.readNullable(FriendlyByteBuf::readUtf)));
 
         @Override
         public @NonNull Type<Request> type() {
