@@ -2,8 +2,8 @@ package com.tunic.parallel_players.client.screen;
 
 import com.tunic.parallel_players.ParallelPlayers;
 import com.tunic.parallel_players.character.CharacterLoadout;
-import com.tunic.parallel_players.character.CharacterMode;
 import com.tunic.parallel_players.character.CharacterMeta;
+import com.tunic.parallel_players.character.CharacterMode;
 import com.tunic.parallel_players.client.CharacterSkins;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
@@ -37,6 +37,7 @@ public class CharactersScreen extends Screen {
 
     private static final int ACTIVE_COLOR = 0xFF55FF55;
     private static final int SUBTEXT_COLOR = 0xFF808080;
+    private static final int DISABLED_COLOR = 0xFF555555;
 
     private final Screen parent;
     private final HeaderAndFooterLayout layout = new HeaderAndFooterLayout(this, 8 + 9 + 8 + 9 + 4, 60);
@@ -51,9 +52,28 @@ public class CharactersScreen extends Screen {
     private Button skinButton;
     private @Nullable UUID selectedId;
 
+    /**
+     * A world that is about to be opened and needs a character that can enter it. While this is set, the
+     * characters that cannot are greyed out, choosing one that can continues into the world, and backing out
+     * releases it.
+     *
+     * @param world    the kind of world being entered
+     * @param onChosen continues opening the world; called after a compatible character became active
+     * @param onCancel releases the world; called when the player backs out
+     */
+    public record WorldRequirement(CharacterMode world, Runnable onChosen, Runnable onCancel) {
+    }
+
+    private final @Nullable WorldRequirement requirement;
+
     public CharactersScreen(Screen parent) {
+        this(parent, null);
+    }
+
+    public CharactersScreen(Screen parent, @Nullable WorldRequirement requirement) {
         super(Component.translatable("parallelplayers.characters.title"));
         this.parent = parent;
+        this.requirement = requirement;
     }
 
     @Override
@@ -110,7 +130,11 @@ public class CharactersScreen extends Screen {
 
     @Override
     public void onClose() {
-        this.minecraft.gui.setScreen(this.parent);
+        if (this.requirement != null) {
+            this.requirement.onCancel().run();
+        } else {
+            this.minecraft.gui.setScreen(this.parent);
+        }
     }
 
     /** Rebuilds the list from disk, keeping the previous selection where possible. */
@@ -129,6 +153,12 @@ public class CharactersScreen extends Screen {
     }
 
     private void updateStatusLine() {
+        if (this.requirement != null) {
+            this.statusLine.setMessage(Component.translatable("parallelplayers.characters.choose_for_world",
+                    Component.translatable(this.requirement.world().translationKey())).withStyle(ChatFormatting.YELLOW));
+            this.layout.arrangeElements();
+            return;
+        }
         Optional<CharacterMeta> active = ParallelPlayers.activeCharacter().get().flatMap(id -> ParallelPlayers.characters().get(id));
         this.statusLine.setMessage(active
                 .map(meta -> Component.translatable("parallelplayers.characters.playing_as", meta.name()))
@@ -161,7 +191,9 @@ public class CharactersScreen extends Screen {
         if (selected == null) {
             return;
         }
-        if (selected.active) {
+        if (this.requirement != null) {
+            this.choose(selected.meta.id());
+        } else if (selected.active) {
             ParallelPlayers.activeCharacter().clear();
         } else {
             ParallelPlayers.activeCharacter().set(selected.meta.id());
@@ -172,20 +204,40 @@ public class CharactersScreen extends Screen {
     /** Makes the entry's character the active one; unlike {@link #toggleActive} it never deselects. */
     private void activate(CharacterEntry entry) {
         this.minecraft.getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
+        if (!entry.enabled) {
+            return;
+        }
         this.selectedId = entry.meta.id();
-        if (!entry.active) {
+        if (this.requirement != null) {
+            this.choose(entry.meta.id());
+        } else if (!entry.active) {
             ParallelPlayers.activeCharacter().set(entry.meta.id());
             this.refresh();
         }
     }
 
+    /** Makes the character active and carries on into the world this screen was opened for. */
+    private void choose(UUID id) {
+        ParallelPlayers.activeCharacter().set(id);
+        if (this.requirement != null) {
+            this.requirement.onChosen().run();
+        }
+    }
+
     private void createCharacter() {
         Component title = Component.translatable("parallelplayers.characters.name.new");
-        this.minecraft.gui.setScreen(new CharacterNameScreen(this, title, "", CommonComponents.GUI_CONTINUE, true, (name, mode) ->
+        // For a world that needs a certain kind of character the mode is not up to the player.
+        boolean askMode = this.requirement == null;
+        this.minecraft.gui.setScreen(new CharacterNameScreen(this, title, "", CommonComponents.GUI_CONTINUE, askMode, (name, chosenMode) ->
                 // Second step: choose the skin; the character only exists once that is confirmed.
                 this.minecraft.gui.setScreen(new CharacterSkinScreen(this, name, null, this.accountSkin, result -> {
+                    CharacterMode mode = this.requirement != null ? this.requirement.world() : chosenMode;
                     CharacterMeta created = ParallelPlayers.characters().create(name, mode, result.skin(), result.image());
                     CharacterSkins.invalidate(created.id());
+                    if (this.requirement != null) {
+                        this.choose(created.id());
+                        return;
+                    }
                     this.selectedId = created.id();
                     // Make the first character active right away so it is used without an extra step.
                     if (ParallelPlayers.activeCharacter().get().isEmpty()) {
@@ -252,6 +304,9 @@ public class CharactersScreen extends Screen {
 
         @Override
         public void setSelected(@Nullable CharacterEntry selected) {
+            if (selected != null && !selected.enabled) {
+                return;
+            }
             super.setSelected(selected);
             CharactersScreen.this.updateButtons();
         }
@@ -270,10 +325,15 @@ public class CharactersScreen extends Screen {
 
         final CharacterMeta meta;
         final boolean active;
+        /** False for a character that cannot enter the world being chosen for; it is greyed out. */
+        final boolean enabled;
 
         CharacterEntry(CharacterMeta meta, boolean active) {
             this.meta = meta;
             this.active = active;
+            WorldRequirement requirement = CharactersScreen.this.requirement;
+            CharacterMode mode = meta.modeChoice();
+            this.enabled = requirement == null || mode == null || mode.canJoin(requirement.world());
         }
 
         @Override
@@ -307,7 +367,7 @@ public class CharactersScreen extends Screen {
             }
             Component label = Component.translatable(mode.translationKey());
             int x = this.getContentX() + this.getContentWidth() - CharactersScreen.this.font.width(label) - 6;
-            int color = switch (mode) {
+            int color = !this.enabled ? DISABLED_COLOR : switch (mode) {
                 case SURVIVAL -> 0xFF6FB6FF;
                 case CREATIVE -> 0xFFFFD84D;
                 case HARDCORE -> 0xFFFF5555;
@@ -319,12 +379,19 @@ public class CharactersScreen extends Screen {
         public void extractContent(GuiGraphicsExtractor graphics, int mouseX, int mouseY, boolean hovered, float a) {
             int x = this.getContentX() + 4;
             int y = this.getContentY() + 2;
-            graphics.text(CharactersScreen.this.font, this.meta.name(), x, y, 0xFFFFFFFF);
+            graphics.text(CharactersScreen.this.font, this.meta.name(), x, y, this.enabled ? 0xFFFFFFFF : DISABLED_COLOR);
             if (this.active) {
                 Component label = Component.translatable("parallelplayers.characters.active");
                 graphics.text(CharactersScreen.this.font, label, x + CharactersScreen.this.font.width(this.meta.name()) + 6, y, ACTIVE_COLOR);
             }
             this.extractModeBadge(graphics);
+            if (!this.enabled && CharactersScreen.this.requirement != null && this.meta.modeChoice() != null) {
+                // Say why it is greyed out, in the line that normally holds the last-played time.
+                Component reason = Component.translatable("parallelplayers.characters.cannot_join",
+                        Component.translatable(CharactersScreen.this.requirement.world().translationKey()));
+                graphics.text(CharactersScreen.this.font, reason, x, y + 12, DISABLED_COLOR);
+                return;
+            }
             String played = DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.SHORT).format(new Date(this.meta.lastPlayedAt()));
             graphics.text(CharactersScreen.this.font, Component.translatable("parallelplayers.characters.last_played", played), x, y + 12, SUBTEXT_COLOR);
         }

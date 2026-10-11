@@ -66,6 +66,10 @@ public class ParallelPlayersLangProvider extends FabricLanguageProvider {
         builder.add("parallelplayers.mode.blocked.suggest", "Characters that can join: %s");
         builder.add("parallelplayers.mode.blocked.none", "You have no %s characters yet. Create one in the Characters menu, or deselect your character.");
 
+        // Character select when a world needs a certain kind of character
+        builder.add("parallelplayers.characters.choose_for_world", "Choose a %s character to enter this world");
+        builder.add("parallelplayers.characters.cannot_join", "Cannot join %s worlds");
+
         // New world without a usable character
         builder.add("parallelplayers.newworld.title", "Create a character for this world?");
         builder.add("parallelplayers.newworld.message", "You are not playing as a character. This will be a %s world.");

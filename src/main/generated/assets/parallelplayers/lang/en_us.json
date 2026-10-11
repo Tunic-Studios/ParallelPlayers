@@ -1,6 +1,8 @@
 {
   "parallelplayers.characters.active": "Active",
   "parallelplayers.characters.button": "Manage your characters",
+  "parallelplayers.characters.cannot_join": "Cannot join %s worlds",
+  "parallelplayers.characters.choose_for_world": "Choose a %s character to enter this world",
   "parallelplayers.characters.delete": "Delete",
   "parallelplayers.characters.delete.message": "\"%s\" and all of its data will be permanently lost.",
   "parallelplayers.characters.delete.title": "Delete this character?",

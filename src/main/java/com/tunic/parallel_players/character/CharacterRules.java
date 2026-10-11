@@ -38,21 +38,22 @@ public final class CharacterRules {
             return Optional.empty();
         }
 
-        List<String> fitting = store.list().stream()
+        List<CharacterMeta> fitting = store.list().stream()
                 .filter(other -> {
                     CharacterMode otherMode = other.modeChoice();
                     return otherMode != null && otherMode.canJoin(world);
                 })
-                .map(CharacterMeta::name)
                 .toList();
         Component modeName = Component.translatable(mode.translationKey());
         Component worldName = Component.translatable(world.translationKey());
         Component suggestion = fitting.isEmpty()
                 ? Component.translatable("parallelplayers.mode.blocked.none", worldName)
-                : Component.translatable("parallelplayers.mode.blocked.suggest", String.join(", ", fitting));
+                : Component.translatable("parallelplayers.mode.blocked.suggest",
+                        fitting.stream().map(CharacterMeta::name).collect(java.util.stream.Collectors.joining(", ")));
         Component message = Component.translatable("parallelplayers.mode.blocked.message", character.name(), modeName, worldName)
                 .append("\n\n").append(suggestion);
-        return Optional.of(new Refusal(Component.translatable("parallelplayers.mode.blocked.title"), message));
+        return Optional.of(new Refusal(Component.translatable("parallelplayers.mode.blocked.title"), message,
+                character, mode, world, fitting));
     }
 
     /**
@@ -86,7 +87,16 @@ public final class CharacterRules {
         return Optional.empty();
     }
 
-    /** Why a join was refused. */
-    public record Refusal(Component title, Component message) {
+    /**
+     * Why a join was refused.
+     *
+     * @param message       the full explanation, including which characters could join
+     * @param character     the character that was refused
+     * @param characterMode that character's mode
+     * @param world         the kind of world it tried to enter
+     * @param fitting       the characters that could join instead, most recently played first
+     */
+    public record Refusal(Component title, Component message, CharacterMeta character, CharacterMode characterMode,
+                          CharacterMode world, List<CharacterMeta> fitting) {
     }
 }
