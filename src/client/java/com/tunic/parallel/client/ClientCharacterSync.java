@@ -21,8 +21,10 @@ import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * The client's side of playing characters on servers (see {@link CharacterPayloads}): sends the active
@@ -37,6 +39,8 @@ public final class ClientCharacterSync {
 
     /** The character played on the server this client is connected to, or {@code null} for the account. */
     private static volatile @Nullable UUID playingAs;
+    /** The names of the characters other players on the connected server play as, by player. */
+    private static final Map<UUID, String> ALIASES = new ConcurrentHashMap<>();
     /** The disconnect held back until the server's last save arrives; only touched on the client thread. */
     private static @Nullable Runnable pendingLeave;
     private static long leaveDeadline;
@@ -56,11 +60,13 @@ public final class ClientCharacterSync {
         // A new connection starts as the account; a server with the mod says otherwise while connecting.
         ClientConfigurationConnectionEvents.INIT.register((listener, client) -> {
             playingAs = null;
+            ALIASES.clear();
             CharacterSkins.clearOtherPlayers();
         });
         ClientPlayConnectionEvents.DISCONNECT.register((listener, client) -> {
             playingAs = null;
             pendingLeave = null;
+            ALIASES.clear();
             // Textures are released on the client thread.
             client.execute(CharacterSkins::clearOtherPlayers);
         });
@@ -93,8 +99,13 @@ public final class ClientCharacterSync {
                 }));
         ClientPlayNetworking.registerGlobalReceiver(CharacterPayloads.Sync.TYPE, (payload, context) -> saveLocally(payload.character()));
         ClientPlayNetworking.registerGlobalReceiver(CharacterPayloads.LeaveReady.TYPE, (payload, context) -> finishLeaving());
-        ClientPlayNetworking.registerGlobalReceiver(CharacterPayloads.PlayerSkins.TYPE, (payload, context) -> {
-            for (CharacterPayloads.PlayerSkins.Entry entry : payload.skins()) {
+        ClientPlayNetworking.registerGlobalReceiver(CharacterPayloads.PlayerCharacters.TYPE, (payload, context) -> {
+            for (CharacterPayloads.PlayerCharacters.Entry entry : payload.players()) {
+                if (entry.name() != null) {
+                    ALIASES.put(entry.player(), entry.name());
+                } else {
+                    ALIASES.remove(entry.player());
+                }
                 CharacterSkins.setOtherPlayer(entry.player(), entry.skin(), entry.image());
             }
         });
@@ -132,6 +143,11 @@ public final class ClientCharacterSync {
         } finally {
             leaving = false;
         }
+    }
+
+    /** The name of the character another player on the connected server plays as, if they play one. */
+    public static Optional<String> alias(UUID player) {
+        return Optional.ofNullable(ALIASES.get(player));
     }
 
     /** The character played on the connected server, if it is not singleplayer and one is being played. */

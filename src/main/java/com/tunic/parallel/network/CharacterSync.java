@@ -54,7 +54,7 @@ public final class CharacterSync {
         ServerConfigurationConnectionEvents.CONFIGURE.register(CharacterSync::onConfigure);
         ServerConfigurationConnectionEvents.DISCONNECT.register((listener, server) -> ASKED.remove(listener.getOwner().id()));
         ServerConfigurationNetworking.registerGlobalReceiver(CharacterPayloads.Upload.TYPE, CharacterSync::onUpload);
-        ServerPlayConnectionEvents.JOIN.register((handler, sender, server) -> shareSkins(server, handler.getPlayer()));
+        ServerPlayConnectionEvents.JOIN.register((handler, sender, server) -> shareCharacters(server, handler.getPlayer()));
         // Play-phase handlers run on the server thread.
         ServerPlayNetworking.registerGlobalReceiver(CharacterPayloads.Leave.TYPE, (payload, context) -> {
             CharacterSwap.saveBeforeLeaving(context.server(), context.player());
@@ -70,51 +70,54 @@ public final class CharacterSync {
     }
 
     /**
-     * Shows a player who just joined with their character's skin to everyone else, and everyone else's to them.
-     * The newcomer's entry is sent even when they play as their account, replacing anything a client still
+     * Tells everyone else who a player who just joined is playing as, and them who everyone else is. The
+     * newcomer's entry is sent even when they play as their account, replacing anything a client still
      * remembers for them from before.
      */
-    private static void shareSkins(MinecraftServer server, ServerPlayer joined) {
-        CharacterPayloads.PlayerSkins.Entry theirs = skinOf(joined);
-        List<CharacterPayloads.PlayerSkins.Entry> others = new ArrayList<>();
+    private static void shareCharacters(MinecraftServer server, ServerPlayer joined) {
+        CharacterPayloads.PlayerCharacters.Entry theirs = characterOf(joined);
+        List<CharacterPayloads.PlayerCharacters.Entry> others = new ArrayList<>();
         for (ServerPlayer other : server.getPlayerList().getPlayers()) {
             if (other == joined) {
                 continue;
             }
-            CharacterPayloads.PlayerSkins.Entry entry = skinOf(other);
-            if (entry.skin() != null) {
+            CharacterPayloads.PlayerCharacters.Entry entry = characterOf(other);
+            if (entry.name() != null) {
                 others.add(entry);
             }
-            if (ServerPlayNetworking.canSend(other, CharacterPayloads.PlayerSkins.TYPE)) {
-                ServerPlayNetworking.send(other, new CharacterPayloads.PlayerSkins(List.of(theirs)));
+            if (ServerPlayNetworking.canSend(other, CharacterPayloads.PlayerCharacters.TYPE)) {
+                ServerPlayNetworking.send(other, new CharacterPayloads.PlayerCharacters(List.of(theirs)));
             }
         }
-        if (!others.isEmpty() && ServerPlayNetworking.canSend(joined, CharacterPayloads.PlayerSkins.TYPE)) {
-            ServerPlayNetworking.send(joined, new CharacterPayloads.PlayerSkins(others));
+        if (!others.isEmpty() && ServerPlayNetworking.canSend(joined, CharacterPayloads.PlayerCharacters.TYPE)) {
+            ServerPlayNetworking.send(joined, new CharacterPayloads.PlayerCharacters(others));
         }
     }
 
-    /** The skin of the player's character, or an entry without one when they play as their account. */
-    private static CharacterPayloads.PlayerSkins.Entry skinOf(ServerPlayer player) {
+    /** The name and skin of the player's character, or an entry with neither when they play as their account. */
+    private static CharacterPayloads.PlayerCharacters.Entry characterOf(ServerPlayer player) {
         UUID id = player.getUUID();
         CharacterSwap.Session session = CharacterSwap.session(player.nameAndId()).orElse(null);
         CharacterMeta meta = session == null ? null : session.meta().orElse(null);
-        if (meta == null || meta.skinChoice().isAccount()) {
-            return new CharacterPayloads.PlayerSkins.Entry(id, null, null);
+        if (meta == null) {
+            return new CharacterPayloads.PlayerCharacters.Entry(id, null, null, null);
         }
         CharacterSkin skin = meta.skinChoice();
+        if (skin.isAccount()) {
+            return new CharacterPayloads.PlayerCharacters.Entry(id, meta.name(), null, null);
+        }
         if (!skin.isCustom()) {
-            return new CharacterPayloads.PlayerSkins.Entry(id, skin, null);
+            return new CharacterPayloads.PlayerCharacters.Entry(id, meta.name(), skin, null);
         }
         try {
             Path file = session.storage().skinFile(meta.id());
             byte[] image = Files.isRegularFile(file) ? Files.readAllBytes(file) : null;
             return image == null || image.length > CharacterBundle.MAX_SKIN_SIZE
-                    ? new CharacterPayloads.PlayerSkins.Entry(id, null, null)
-                    : new CharacterPayloads.PlayerSkins.Entry(id, skin, image);
+                    ? new CharacterPayloads.PlayerCharacters.Entry(id, meta.name(), null, null)
+                    : new CharacterPayloads.PlayerCharacters.Entry(id, meta.name(), skin, image);
         } catch (IOException e) {
             LOGGER.warn("Could not read the skin of {}'s character", player.getPlainTextName(), e);
-            return new CharacterPayloads.PlayerSkins.Entry(id, null, null);
+            return new CharacterPayloads.PlayerCharacters.Entry(id, meta.name(), null, null);
         }
     }
 

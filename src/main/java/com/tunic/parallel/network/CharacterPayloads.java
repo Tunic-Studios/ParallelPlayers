@@ -29,8 +29,8 @@ import java.util.UUID;
  * the client asks for one last save ({@link Leave}) and disconnects once it has it ({@link LeaveReady}):
  * the save vanilla makes after the connection is gone could not reach the client any more.
  *
- * <p>The server also tells every client with the mod which skin each player's character has
- * ({@link PlayerSkins}), so characters look like themselves to everyone.
+ * <p>The server also tells every client with the mod who each player is playing as ({@link PlayerCharacters}),
+ * so characters look like themselves and carry their own name to everyone.
  */
 public final class CharacterPayloads {
 
@@ -44,7 +44,7 @@ public final class CharacterPayloads {
         PayloadTypeRegistry.clientboundPlay().registerLarge(Sync.TYPE, Sync.STREAM_CODEC, CharacterBundle.MAX_SIZE);
         PayloadTypeRegistry.serverboundPlay().register(Leave.TYPE, Leave.STREAM_CODEC);
         PayloadTypeRegistry.clientboundPlay().register(LeaveReady.TYPE, LeaveReady.STREAM_CODEC);
-        PayloadTypeRegistry.clientboundPlay().registerLarge(PlayerSkins.TYPE, PlayerSkins.STREAM_CODEC, PlayerSkins.MAX_SIZE);
+        PayloadTypeRegistry.clientboundPlay().registerLarge(PlayerCharacters.TYPE, PlayerCharacters.STREAM_CODEC, PlayerCharacters.MAX_SIZE);
     }
 
     private static <T extends CustomPacketPayload> CustomPacketPayload.Type<T> payloadType(String name) {
@@ -129,33 +129,36 @@ public final class CharacterPayloads {
     }
 
     /**
-     * Server to client, while playing: the skins of players' characters.
+     * Server to client, while playing: who players are playing as, so clients can show each player's character
+     * by name (above their head) and by skin.
      *
-     * @param skins one entry per player; a player whose entry has no skin is shown with their account's skin
+     * @param players one entry per player
      */
-    public record PlayerSkins(List<Entry> skins) implements CustomPacketPayload {
+    public record PlayerCharacters(List<Entry> players) implements CustomPacketPayload {
 
         /** Enough for a full server of imported skins. */
         public static final int MAX_SIZE = 64 * (CharacterBundle.MAX_SKIN_SIZE + 1024);
-        public static final Type<PlayerSkins> TYPE = payloadType("player_skins");
-        public static final StreamCodec<FriendlyByteBuf, PlayerSkins> STREAM_CODEC = Entry.STREAM_CODEC
+        public static final Type<PlayerCharacters> TYPE = payloadType("player_characters");
+        public static final StreamCodec<FriendlyByteBuf, PlayerCharacters> STREAM_CODEC = Entry.STREAM_CODEC
                 .apply(ByteBufCodecs.list())
-                .map(PlayerSkins::new, PlayerSkins::skins);
+                .map(PlayerCharacters::new, PlayerCharacters::players);
 
         @Override
-        public @NonNull Type<PlayerSkins> type() {
+        public @NonNull Type<PlayerCharacters> type() {
             return TYPE;
         }
 
         /**
+         * @param name  the character's name, or {@code null} when the player plays as their account
          * @param skin  the character's skin, or {@code null} for the account's own
          * @param image the PNG for an imported skin ({@link CharacterSkin#CUSTOM}), otherwise {@code null}
          */
-        public record Entry(UUID player, @Nullable CharacterSkin skin, byte @Nullable [] image) {
+        public record Entry(UUID player, @Nullable String name, @Nullable CharacterSkin skin, byte @Nullable [] image) {
 
             public static final StreamCodec<FriendlyByteBuf, Entry> STREAM_CODEC = StreamCodec.of(
                     (buf, entry) -> {
                         buf.writeUUID(entry.player());
+                        buf.writeNullable(entry.name(), FriendlyByteBuf::writeUtf);
                         buf.writeNullable(entry.skin(), (out, skin) -> {
                             out.writeNullable(skin.id(), FriendlyByteBuf::writeUtf);
                             out.writeBoolean(skin.slim());
@@ -164,6 +167,7 @@ public final class CharacterPayloads {
                     },
                     buf -> new Entry(
                             buf.readUUID(),
+                            buf.readNullable(FriendlyByteBuf::readUtf),
                             buf.readNullable(in -> new CharacterSkin(in.readNullable(FriendlyByteBuf::readUtf), in.readBoolean())),
                             buf.readNullable(in -> in.readByteArray(CharacterBundle.MAX_SKIN_SIZE))));
         }
