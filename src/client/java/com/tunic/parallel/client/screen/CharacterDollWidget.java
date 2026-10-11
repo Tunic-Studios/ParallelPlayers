@@ -14,6 +14,7 @@ import net.minecraft.client.renderer.entity.state.AvatarRenderState;
 import net.minecraft.client.sounds.SoundManager;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.network.chat.CommonComponents;
+import net.minecraft.util.Mth;
 import net.minecraft.world.entity.EntityTypes;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.HumanoidArm;
@@ -43,6 +44,10 @@ public class CharacterDollWidget extends AbstractWidget {
     private static final float VIEW_HEIGHT_BLOCKS = 2.2F;
     /** How many blocks of width it shows: the body, arms swung out, held items and the cape. */
     private static final float VIEW_WIDTH_BLOCKS = 1.5F;
+    /** Pixels of cursor offset per radian of turn, as in vanilla's inventory doll. */
+    private static final float LOOK_DISTANCE = 40.0F;
+    /** How far the head may turn from the body, in degrees, when the body has been dragged round. */
+    private static final float MAX_HEAD_TURN = 60.0F;
 
     private final Minecraft minecraft;
     private Supplier<PlayerSkin> skin;
@@ -132,15 +137,25 @@ public class CharacterDollWidget extends AbstractWidget {
         // The idle animation (arms gently swaying) is driven purely by the entity's age, so letting it
         // advance in real time, 20 ticks per second, is all that is needed to play it.
         state.ageInTicks = (System.nanoTime() - this.startNanos) / 50_000_000.0F;
-        state.bodyRot = 180.0F + this.rotationY;
-        state.yRot = 0.0F;
-        state.xRot = 0.0F;
 
         // Fit to whichever of the two dimensions is tighter, so the model is never clipped by the widget.
         float scale = Math.min(this.getHeight() / VIEW_HEIGHT_BLOCKS, this.getWidth() / VIEW_WIDTH_BLOCKS);
-        Quaternionf rotation = new Quaternionf().rotateZ((float) Math.PI);
+
+        // Look at the cursor the way vanilla's inventory doll does, but measured from the eyes rather than
+        // the middle of the box, since this doll is much taller.
+        float eyeX = (this.getX() + this.getRight()) / 2.0F;
+        float eyeY = (this.getY() + this.getBottom()) / 2.0F - (state.eyeHeight - PLAYER_HEIGHT / 2.0F) * scale;
+        float yaw = (float) Math.atan((eyeX - mouseX) / LOOK_DISTANCE);
+        float pitch = (float) Math.atan((eyeY - mouseY) / LOOK_DISTANCE);
+        state.bodyRot = 180.0F + this.rotationY + yaw * 20.0F;
+        // The head faces the cursor whichever way the body was dragged round, as far as a neck turns.
+        state.yRot = Mth.clamp(Mth.wrapDegrees(yaw * 40.0F - this.rotationY - yaw * 20.0F), -MAX_HEAD_TURN, MAX_HEAD_TURN);
+        state.xRot = -pitch * 20.0F;
+
+        Quaternionf tilt = new Quaternionf().rotateX(pitch * 20.0F * Mth.DEG_TO_RAD);
+        Quaternionf rotation = new Quaternionf().rotateZ((float) Math.PI).mul(tilt);
         Vector3f translation = new Vector3f(0.0F, state.boundingBoxHeight / 2.0F + 0.0625F, 0.0F);
-        graphics.entity(state, scale, translation, rotation, new Quaternionf(), this.getX(), this.getY(), this.getRight(), this.getBottom());
+        graphics.entity(state, scale, translation, rotation, tilt, this.getX(), this.getY(), this.getRight(), this.getBottom());
     }
 
     @Override
