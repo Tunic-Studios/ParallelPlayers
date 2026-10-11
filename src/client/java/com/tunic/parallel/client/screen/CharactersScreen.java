@@ -18,9 +18,11 @@ import net.minecraft.client.gui.screens.ConfirmScreen;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.input.KeyEvent;
 import net.minecraft.client.input.MouseButtonEvent;
+import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.client.resources.sounds.SimpleSoundInstance;
 import net.minecraft.network.chat.CommonComponents;
 import net.minecraft.network.chat.Component;
+import net.minecraft.resources.Identifier;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.world.entity.player.PlayerSkin;
 import org.jspecify.annotations.NonNull;
@@ -38,6 +40,10 @@ public class CharactersScreen extends Screen {
     private static final int ACTIVE_COLOR = 0xFF55FF55;
     private static final int SUBTEXT_COLOR = 0xFF808080;
     private static final int DISABLED_COLOR = 0xFF555555;
+    private static final int PLAYTIME_COLOR = 0xFF555555;
+    private static final int DISABLED_ICON_TINT = 0xFF606060;
+    private static final int MODE_ICON_SIZE = 8;
+    private static final int MODE_ICON_GAP = 3;
 
     private final Screen parent;
     private final HeaderAndFooterLayout layout = new HeaderAndFooterLayout(this, 8 + 9 + 8 + 9 + 4, 60);
@@ -316,6 +322,11 @@ public class CharactersScreen extends Screen {
         }
 
         @Override
+        int leftGutter() {
+            return MODE_ICON_SIZE + MODE_ICON_GAP;
+        }
+
+        @Override
         public void setSelected(@Nullable CharacterEntry selected) {
             if (selected != null && !selected.enabled) {
                 return;
@@ -374,20 +385,23 @@ public class CharactersScreen extends Screen {
             return super.keyPressed(event);
         }
 
-        /** The character's mode, right-aligned in the row; nothing for a character that has none yet. */
-        private void extractModeBadge(GuiGraphicsExtractor graphics) {
+        /**
+         * The character's mode as an icon just left of the row, named in a tooltip on hover; nothing for a
+         * character that has none yet.
+         */
+        private void extractModeIcon(GuiGraphicsExtractor graphics, int mouseX, int mouseY) {
             CharacterMode mode = this.meta.modeChoice();
             if (mode == null) {
                 return;
             }
-            Component label = Component.translatable(mode.translationKey());
-            int x = this.getContentX() + this.getContentWidth() - CharactersScreen.this.font.width(label) - 6;
-            int color = !this.enabled ? DISABLED_COLOR : switch (mode) {
-                case SURVIVAL -> 0xFF6FB6FF;
-                case CREATIVE -> 0xFFFFD84D;
-                case HARDCORE -> 0xFFFF5555;
-            };
-            graphics.text(CharactersScreen.this.font, label, x, this.getContentY() + 2, color);
+            int x = this.getX() - MODE_ICON_GAP - MODE_ICON_SIZE;
+            int y = this.getY() + (this.getHeight() - MODE_ICON_SIZE) / 2;
+            Identifier sprite = Identifier.fromNamespaceAndPath(ParallelPlayers.MOD_ID, "mode/" + mode.id());
+            graphics.blitSprite(RenderPipelines.GUI_TEXTURED, sprite, x, y, MODE_ICON_SIZE, MODE_ICON_SIZE,
+                    this.enabled ? -1 : DISABLED_ICON_TINT);
+            if (mouseX >= x && mouseX < x + MODE_ICON_SIZE && mouseY >= y && mouseY < y + MODE_ICON_SIZE) {
+                graphics.setTooltipForNextFrame(Component.translatable(mode.translationKey()), mouseX, mouseY);
+            }
         }
 
         @Override
@@ -399,7 +413,7 @@ public class CharactersScreen extends Screen {
                 Component label = Component.translatable("parallel.characters.active");
                 graphics.text(CharactersScreen.this.font, label, x + CharactersScreen.this.font.width(this.meta.name()) + 6, y, ACTIVE_COLOR);
             }
-            this.extractModeBadge(graphics);
+            this.extractModeIcon(graphics, mouseX, mouseY);
             int detailColor = this.enabled ? SUBTEXT_COLOR : DISABLED_COLOR;
             if (!this.enabled && CharactersScreen.this.requirement != null && this.meta.modeChoice() != null) {
                 // Say why it is greyed out, in the line that normally holds the last-played time.
@@ -411,7 +425,7 @@ public class CharactersScreen extends Screen {
                 graphics.text(CharactersScreen.this.font, Component.translatable("parallel.characters.last_played", played), x, y + 12, detailColor);
             }
             graphics.text(CharactersScreen.this.font,
-                    Component.translatable("parallel.characters.playtime", formatPlayTime(this.playTimeTicks)), x, y + 22, detailColor);
+                    Component.translatable("parallel.characters.playtime", formatPlayTime(this.playTimeTicks)), x, y + 22, PLAYTIME_COLOR);
         }
     }
 }

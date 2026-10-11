@@ -16,6 +16,11 @@ abstract class DollSideList<E extends ObjectSelectionList.Entry<E>> extends Obje
         super(minecraft, width, height, y, itemHeight);
     }
 
+    /** Space kept free just left of the rows, for anything a row draws beside itself. */
+    int leftGutter() {
+        return 0;
+    }
+
     @Override
     public int getRowLeft() {
         return this.rowsLeft;

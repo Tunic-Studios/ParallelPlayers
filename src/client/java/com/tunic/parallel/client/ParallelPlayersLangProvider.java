@@ -27,8 +27,8 @@ public class ParallelPlayersLangProvider extends FabricLanguageProvider {
         builder.add("parallel.characters.skin", "Skin");
         builder.add("parallel.characters.active", "Active");
         builder.add("parallel.characters.last_played", "Last played: %s");
-        builder.add("parallel.characters.playtime", "Playtime: %s");
-        builder.add("parallel.characters.playtime.short", "less than a minute");
+        builder.add("parallel.characters.playtime", "%s");
+        builder.add("parallel.characters.playtime.short", "Less than a minute");
         builder.add("parallel.characters.empty", "No characters yet. Create one to get started.");
         builder.add("parallel.characters.playing_as", "Playing as %s");
         builder.add("parallel.characters.vanilla_hint", "No character selected: worlds use their own player data.");

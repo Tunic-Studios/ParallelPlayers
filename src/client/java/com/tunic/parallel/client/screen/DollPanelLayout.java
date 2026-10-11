@@ -34,23 +34,25 @@ record DollPanelLayout(int rowsLeft, int dollX, int dollY, int dollWidth, int do
     static void place(int screenWidth, HeaderAndFooterLayout layout, DollSideList<?> list, CharacterDollWidget doll) {
         int top = layout.getHeaderHeight();
         int height = layout.getContentHeight();
-        DollPanelLayout panel = of(screenWidth, top, height, list.getRowWidth());
+        DollPanelLayout panel = of(screenWidth, top, height, list.getRowWidth(), list.leftGutter());
         list.rowsLeft = panel.rowsLeft();
         list.updateSizeAndPosition(screenWidth, height, 0, top);
         doll.setSize(panel.dollWidth(), panel.dollHeight());
         doll.setPosition(panel.dollX(), panel.dollY());
     }
 
-    static DollPanelLayout of(int screenWidth, int top, int contentHeight, int rowWidth) {
+    /** @param gutter space kept free between the doll and the rows, beyond the usual padding */
+    static DollPanelLayout of(int screenWidth, int top, int contentHeight, int rowWidth, int gutter) {
         // Never closer to the right edge than the scrollbar needs, nor so far left that the doll would not fit.
         int rowsLeft = Math.round(screenWidth * LIST_CENTER - rowWidth / 2.0F);
         rowsLeft = Math.min(rowsLeft, screenWidth - rowWidth - LIST_RIGHT_MARGIN);
-        rowsLeft = Math.max(rowsLeft, DOLL_MIN_WIDTH + 2 * DOLL_PADDING);
+        rowsLeft = Math.max(rowsLeft, DOLL_MIN_WIDTH + 2 * DOLL_PADDING + gutter);
 
         int dollHeight = Math.max(DOLL_MIN_HEIGHT, contentHeight - 2 * DOLL_PADDING - DOLL_LABEL_HEIGHT);
         int maxDollWidth = Math.max(DOLL_MAX_WIDTH, dollHeight * 3 / 4);
-        int dollWidth = Math.clamp(rowsLeft - 2 * DOLL_PADDING, DOLL_MIN_WIDTH, maxDollWidth);
+        int dollSpace = rowsLeft - gutter;
+        int dollWidth = Math.clamp(dollSpace - 2 * DOLL_PADDING, DOLL_MIN_WIDTH, maxDollWidth);
 
-        return new DollPanelLayout(rowsLeft, Math.max(0, (rowsLeft - dollWidth) / 2), top + DOLL_PADDING, dollWidth, dollHeight);
+        return new DollPanelLayout(rowsLeft, Math.max(0, (dollSpace - dollWidth) / 2), top + DOLL_PADDING, dollWidth, dollHeight);
     }
 }
