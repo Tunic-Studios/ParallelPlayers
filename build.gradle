@@ -67,7 +67,13 @@ dependencies {
     // Lets you log in with a real Microsoft account in the dev client
     runtimeOnly "me.djtheredstoner:DevAuth-fabric:${project.devauth_version}"
 
-    // Mod list screen in the dev client
+    // Per-player permissions (LuckPerms and others hook into it). Bundled in the jar so it is always there;
+    // without a permissions mod it simply answers with each permission's default.
+    implementation "me.lucko:fabric-permissions-api:${project.permissions_api_version}"
+    include "me.lucko:fabric-permissions-api:${project.permissions_api_version}"
+
+    // Mod list screen: optional, it only adds a button to open the settings screen
+    compileOnly "com.terraformersmc:modmenu:${project.modmenu_version}"
     runtimeOnly "com.terraformersmc:modmenu:${project.modmenu_version}"
 }
 

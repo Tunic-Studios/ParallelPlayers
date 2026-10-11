@@ -3,7 +3,9 @@ package com.tunic.parallel;
 import com.tunic.parallel.character.ActiveCharacter;
 import com.tunic.parallel.character.CharacterRules;
 import com.tunic.parallel.character.CharacterStore;
+import com.tunic.parallel.config.ServerConfig;
 import net.fabricmc.api.ModInitializer;
+import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
 import net.fabricmc.loader.api.FabricLoader;
 
@@ -42,6 +44,9 @@ public class ParallelPlayers implements ModInitializer {
 
     @Override
     public void onInitialize() {
+        ServerConfig.reload();
+        // Read again for every world or server start, so edits to the file apply without restarting the game.
+        ServerLifecycleEvents.SERVER_STARTING.register(server -> ServerConfig.reload());
         ServerPlayConnectionEvents.JOIN.register((handler, sender, server) ->
                 CharacterRules.onJoin(server, handler.getPlayer()).ifPresent(refusal -> handler.disconnect(refusal.message())));
     }

@@ -1,6 +1,8 @@
 package com.tunic.parallel.character;
 
 import com.tunic.parallel.ParallelPlayers;
+import com.tunic.parallel.config.ParallelPermissions;
+import com.tunic.parallel.config.ServerConfig;
 import net.minecraft.nbt.*;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
@@ -18,9 +20,11 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Swaps the singleplayer owner's player data with the active character's data.
@@ -42,6 +46,12 @@ public final class CharacterSwap {
     /** The account's own data in a world, kept under the world folder while a character plays there. */
     private static final String ACCOUNT_FILE = "account.dat";
 
+    /**
+     * The character each player was loaded as, by player id. Decided once, when their data is loaded, so that
+     * statistics, advancements and saving all agree for the whole session even if the settings change.
+     */
+    private static final Map<UUID, UUID> PLAYING = new ConcurrentHashMap<>();
+
     /** Keys of the player's NBT that describe where the player is in a particular world. */
     static final Set<String> LOCATION_KEYS = Set.of(
             "Pos", "Motion", "Rotation", "Dimension", "respawn", "LastDeathLocation", "RootVehicle",
@@ -62,17 +72,18 @@ public final class CharacterSwap {
         if (!server.isSingleplayerOwner(player)) {
             return Optional.ofNullable(worldData);
         }
-        Optional<UUID> active = ParallelPlayers.activeCharacter().get();
+        Optional<UUID> active = characterToLoad(player);
         if (active.isEmpty()) {
+            PLAYING.remove(player.id());
             return accountData(server, worldData);
         }
         UUID id = active.get();
+        PLAYING.put(player.id(), id);
         CharacterStore store = ParallelPlayers.characters();
         try {
             setAccountAside(server, worldData);
             store.touch(id);
-            // One backup per time a world is entered, not per autosave, so older ones are not rotated out.
-            store.backupPlayerData(id);
+            store.onEnterWorld(id);
             Optional<byte[]> bytes = store.readPlayerData(id);
             if (bytes.isEmpty()) {
                 // A brand new character: start fresh instead of inheriting the world's last player.
@@ -107,16 +118,30 @@ public final class CharacterSwap {
      * reads and writes the file itself, so statistics follow the character with no copying.
      */
     public static Optional<Path> statsFile(MinecraftServer server, NameAndId player) {
-        return characterFor(server, player).map(ParallelPlayers.characters()::statsFile);
+        return playingAs(server, player).map(ParallelPlayers.characters()::statsFile);
     }
 
     /** Same as {@link #statsFile} for advancement progress. */
     public static Optional<Path> advancementsFile(MinecraftServer server, NameAndId player) {
-        return characterFor(server, player).map(ParallelPlayers.characters()::advancementsFile);
+        return playingAs(server, player).map(ParallelPlayers.characters()::advancementsFile);
     }
 
-    private static Optional<UUID> characterFor(MinecraftServer server, NameAndId player) {
-        return server.isSingleplayerOwner(player) ? ParallelPlayers.activeCharacter().get() : Optional.empty();
+    /** The active character, if this server lets the player use it. */
+    private static Optional<UUID> characterToLoad(NameAndId player) {
+        if (!ServerConfig.get().charactersEnabled) {
+            return Optional.empty();
+        }
+        Optional<UUID> active = ParallelPlayers.activeCharacter().get();
+        if (active.isPresent() && !ParallelPermissions.canUseCharacters(player)) {
+            LOGGER.info("{} may not use characters here ({}), playing as the account", player.name(), ParallelPermissions.USE_CHARACTERS);
+            return Optional.empty();
+        }
+        return active;
+    }
+
+    /** The character the player is playing as on this server, or empty when they play as their account. */
+    public static Optional<UUID> playingAs(MinecraftServer server, NameAndId player) {
+        return server.isSingleplayerOwner(player) ? Optional.ofNullable(PLAYING.get(player.id())) : Optional.empty();
     }
 
     /**
@@ -126,7 +151,7 @@ public final class CharacterSwap {
     @SuppressWarnings("resource") // the level is owned and closed by the server, never by callers
     public static Optional<String> nickname(ServerPlayer player) {
         MinecraftServer server = player.level().getServer();
-        return characterFor(server, player.nameAndId())
+        return playingAs(server, player.nameAndId())
                 .flatMap(id -> ParallelPlayers.characters().get(id))
                 .map(CharacterMeta::name);
     }
@@ -136,7 +161,7 @@ public final class CharacterSwap {
         if (!server.isSingleplayerOwner(player.nameAndId())) {
             return;
         }
-        Optional<UUID> active = ParallelPlayers.activeCharacter().get();
+        Optional<UUID> active = playingAs(server, player.nameAndId());
         if (active.isEmpty()) {
             // The account's data is back in the world's own save, so the copy put aside is no longer needed.
             try {
@@ -181,6 +206,7 @@ public final class CharacterSwap {
 
             ByteArrayOutputStream out = new ByteArrayOutputStream();
             NbtIo.writeCompressed(tag, out);
+            store.beforeSave(id);
             store.writePlayerData(id, out.toByteArray());
             store.writeAppearance(id, CharacterLoadout.capture(player));
         } catch (Exception e) {

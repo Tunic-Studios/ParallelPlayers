@@ -32,7 +32,7 @@ import java.util.stream.Stream;
  *     skin.png         imported skin image, when the character uses a custom skin
  *     stats.json       statistics, read and written by vanilla's stats counter
  *     advancements.json  advancement progress, read and written by vanilla
- *     backup/          previous playerdata.dat copies, newest first
+ *     backup/          previous playerdata.dat copies, the newest {@link #setBackupLimit limit} of them
  * </pre>
  */
 public final class CharacterStore {
@@ -47,11 +47,15 @@ public final class CharacterStore {
     static final String STATS_FILE = "stats.json";
     static final String ADVANCEMENTS_FILE = "advancements.json";
     static final String BACKUP_DIR = "backup";
-    static final int MAX_BACKUPS = 5;
+    public static final int DEFAULT_BACKUP_LIMIT = 5;
 
     private final Path root;
     /** Parsed metadata by id; every change goes through this class, so it is kept in step. */
     private final Map<UUID, CharacterMeta> cache = new ConcurrentHashMap<>();
+    private volatile int backupLimit = DEFAULT_BACKUP_LIMIT;
+    private volatile BackupTiming backupTiming = BackupTiming.ENTER_WORLD;
+    /** Characters backed up since the game started, for {@link BackupTiming#GAME_LAUNCH}. */
+    private final Set<UUID> backedUpThisLaunch = ConcurrentHashMap.newKeySet();
 
     public CharacterStore(Path root) {
         this.root = root;
@@ -220,8 +224,9 @@ public final class CharacterStore {
     }
 
     /**
-     * Keeps a copy of the character's current player data in {@code backup/}, newest {@value #MAX_BACKUPS}
-     * kept. Meant to be called once per play session, before the session starts changing the data.
+     * Keeps a copy of the character's current player data in {@code backup/}, newest {@link #setBackupLimit limit}
+     * kept. Meant to be called before a play session starts changing the data. Nothing new is written when
+     * the newest backup already holds exactly this data, so calling it more than once per session is harmless.
      */
     public void backupPlayerData(UUID id) {
         Path dir = dir(id);
@@ -236,15 +241,51 @@ public final class CharacterStore {
         }
     }
 
+    /**
+     * How many backups each character keeps; older ones are deleted at the next backup. 0 turns backups off,
+     * and the existing ones are then removed the next time the character is played.
+     */
+    public void setBackupLimit(int limit) {
+        this.backupLimit = Math.max(0, limit);
+    }
+
+    public void setBackupTiming(BackupTiming timing) {
+        this.backupTiming = timing;
+    }
+
+    /** Backs the character up if the backup timing calls for it when it enters a world. */
+    public void onEnterWorld(UUID id) {
+        BackupTiming timing = this.backupTiming;
+        if (timing == BackupTiming.ENTER_WORLD
+                || timing == BackupTiming.GAME_LAUNCH && this.backedUpThisLaunch.add(id)) {
+            backupPlayerData(id);
+        }
+    }
+
+    /** Backs the character up if the backup timing calls for it before its data is saved over. */
+    public void beforeSave(UUID id) {
+        if (this.backupTiming == BackupTiming.WORLD_SAVE) {
+            backupPlayerData(id);
+        }
+    }
+
     private void backup(Path dir, Path file) throws IOException {
+        int limit = this.backupLimit;
         Path backups = dir.resolve(BACKUP_DIR);
         Files.createDirectories(backups);
-        Files.copy(file, backups.resolve(System.currentTimeMillis() + ".dat"), StandardCopyOption.REPLACE_EXISTING);
+        List<Path> existing;
         try (Stream<Path> old = Files.list(backups)) {
-            List<Path> sorted = old.sorted(Comparator.comparing((Path p) -> p.getFileName().toString()).reversed()).toList();
-            for (Path p : sorted.stream().skip(MAX_BACKUPS).toList()) {
-                Files.deleteIfExists(p);
-            }
+            // Newest first: the names are the times the backups were made.
+            existing = old.sorted(Comparator.comparing((Path p) -> p.getFileName().toString()).reversed()).toList();
+        }
+        List<Path> kept = new ArrayList<>(existing);
+        if (limit > 0 && (existing.isEmpty() || Files.mismatch(existing.getFirst(), file) != -1L)) {
+            Path copy = backups.resolve(System.currentTimeMillis() + ".dat");
+            Files.copy(file, copy, StandardCopyOption.REPLACE_EXISTING);
+            kept.addFirst(copy);
+        }
+        for (Path p : kept.stream().skip(limit).toList()) {
+            Files.deleteIfExists(p);
         }
     }
 

@@ -2,6 +2,7 @@ package com.tunic.parallel.mixin.client;
 
 import com.tunic.parallel.character.CharacterMode;
 import com.tunic.parallel.character.CharacterRules;
+import com.tunic.parallel.config.ServerConfig;
 import com.tunic.parallel.client.screen.NewWorldCharacterScreen;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.Screen;
@@ -37,6 +38,9 @@ public abstract class CreateWorldScreenMixin {
     private void parallel$requireCharacter(CallbackInfo ci) {
         if (this.parallel$characterHandled) {
             this.parallel$characterHandled = false;
+            return;
+        }
+        if (!ServerConfig.get().charactersEnabled) {
             return;
         }
         CharacterMode world = CharacterMode.ofWorld(

@@ -18,6 +18,9 @@
     ],
     "main": [
       "com.tunic.parallel.ParallelPlayers"
+    ],
+    "modmenu": [
+      "com.tunic.parallel.client.ParallelModMenu"
     ]
   },
   "mixins": [

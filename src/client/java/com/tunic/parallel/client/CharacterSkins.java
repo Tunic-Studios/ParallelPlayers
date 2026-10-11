@@ -2,6 +2,7 @@ package com.tunic.parallel.client;
 
 import com.mojang.blaze3d.platform.NativeImage;
 import com.tunic.parallel.ParallelPlayers;
+import com.tunic.parallel.config.ServerConfig;
 import com.tunic.parallel.character.CharacterMeta;
 import com.tunic.parallel.character.CharacterSkin;
 import net.minecraft.client.Minecraft;
@@ -57,6 +58,9 @@ public final class CharacterSkins {
 
     /** The skin of the active character for the local player, or {@code account} when none applies. */
     public static PlayerSkin forActiveCharacter(PlayerSkin account) {
+        if (!ServerConfig.get().charactersEnabled) {
+            return account;
+        }
         return ParallelPlayers.activeCharacter().get()
                 .flatMap(id -> ParallelPlayers.characters().get(id))
                 .map(meta -> resolve(meta, account))

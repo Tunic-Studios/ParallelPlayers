@@ -1,6 +1,7 @@
 package com.tunic.parallel.client.screen;
 
 import com.tunic.parallel.character.CharacterLoadout;
+import com.tunic.parallel.client.config.ClientConfig;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.ComponentPath;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
@@ -53,6 +54,11 @@ public class CharacterDollWidget extends AbstractWidget {
     private Supplier<PlayerSkin> skin;
     private final AvatarRenderState state = new AvatarRenderState();
     private float rotationY = 30.0F;
+    /** What the character wears and holds, before {@link ClientConfig} hides any of it. */
+    private CharacterLoadout loadout = CharacterLoadout.EMPTY;
+    /** The armor and item settings the doll was last dressed with, so it is redressed when they change. */
+    private boolean dressedWithArmor;
+    private boolean dressedWithItems;
     private final long startNanos = System.nanoTime();
 
     public CharacterDollWidget(int width, int height, Minecraft minecraft, Supplier<PlayerSkin> skin) {
@@ -63,7 +69,7 @@ public class CharacterDollWidget extends AbstractWidget {
         this.state.boundingBoxWidth = 0.6F;
         this.state.boundingBoxHeight = PLAYER_HEIGHT;
         this.state.eyeHeight = 1.62F;
-        this.setLoadout(CharacterLoadout.EMPTY);
+        this.dress();
     }
 
     /** Changes which skin the doll is drawn with; the supplier is read every frame. */
@@ -71,8 +77,17 @@ public class CharacterDollWidget extends AbstractWidget {
         this.skin = skin;
     }
 
-    /** Dresses the doll in what the character wears and holds. */
+    /** Dresses the doll in what the character wears and holds, as far as the settings show them. */
     public void setLoadout(CharacterLoadout loadout) {
+        this.loadout = loadout;
+        this.dress();
+    }
+
+    private void dress() {
+        ClientConfig config = ClientConfig.get();
+        this.dressedWithArmor = config.dollShowsArmor;
+        this.dressedWithItems = config.dollShowsItems;
+        CharacterLoadout loadout = getLoadout();
         AvatarRenderState state = this.state;
         state.headEquipment = renderableArmor(loadout.head(), EquipmentSlot.HEAD);
         state.chestEquipment = renderableArmor(loadout.chest(), EquipmentSlot.CHEST);
@@ -96,6 +111,19 @@ public class CharacterDollWidget extends AbstractWidget {
         state.mainArm = mainArm;
         this.setHand(HumanoidArm.RIGHT, mainArm == HumanoidArm.RIGHT ? loadout.mainHand() : loadout.offHand());
         this.setHand(HumanoidArm.LEFT, mainArm == HumanoidArm.LEFT ? loadout.mainHand() : loadout.offHand());
+    }
+
+    private @NonNull CharacterLoadout getLoadout() {
+        CharacterLoadout full = this.loadout;
+        // Anything worn on the head (skulls, pumpkins, ...) counts as armor here.
+        CharacterLoadout loadout = new CharacterLoadout(
+                this.dressedWithArmor ? full.head() : ItemStack.EMPTY,
+                this.dressedWithArmor ? full.chest() : ItemStack.EMPTY,
+                this.dressedWithArmor ? full.legs() : ItemStack.EMPTY,
+                this.dressedWithArmor ? full.feet() : ItemStack.EMPTY,
+                this.dressedWithItems ? full.mainHand() : ItemStack.EMPTY,
+                this.dressedWithItems ? full.offHand() : ItemStack.EMPTY);
+        return loadout;
     }
 
     private void setHand(HumanoidArm arm, ItemStack stack) {
@@ -125,6 +153,10 @@ public class CharacterDollWidget extends AbstractWidget {
     @Override
     protected void extractWidgetRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float a) {
         AvatarRenderState state = this.state;
+        ClientConfig config = ClientConfig.get();
+        if (config.dollShowsArmor != this.dressedWithArmor || config.dollShowsItems != this.dressedWithItems) {
+            this.dress();
+        }
         // The skin may still be downloading when the widget is created, so read it every frame.
         state.skin = this.skin.get();
         state.showCape = this.minecraft.options.isModelPartEnabled(PlayerModelPart.CAPE);
@@ -145,11 +177,14 @@ public class CharacterDollWidget extends AbstractWidget {
         // the middle of the box, since this doll is much taller.
         float eyeX = (this.getX() + this.getRight()) / 2.0F;
         float eyeY = (this.getY() + this.getBottom()) / 2.0F - (state.eyeHeight - PLAYER_HEIGHT / 2.0F) * scale;
-        float yaw = (float) Math.atan((eyeX - mouseX) / LOOK_DISTANCE);
-        float pitch = (float) Math.atan((eyeY - mouseY) / LOOK_DISTANCE);
+        boolean follow = ClientConfig.get().dollFollowsCursor;
+        float yaw = follow ? (float) Math.atan((eyeX - mouseX) / LOOK_DISTANCE) : 0.0F;
+        float pitch = follow ? (float) Math.atan((eyeY - mouseY) / LOOK_DISTANCE) : 0.0F;
         state.bodyRot = 180.0F + this.rotationY + yaw * 20.0F;
         // The head faces the cursor whichever way the body was dragged round, as far as a neck turns.
-        state.yRot = Mth.clamp(Mth.wrapDegrees(yaw * 40.0F - this.rotationY - yaw * 20.0F), -MAX_HEAD_TURN, MAX_HEAD_TURN);
+        // Without following, it simply faces the way the body does.
+        state.yRot = !follow ? 0.0F
+                : Mth.clamp(Mth.wrapDegrees(yaw * 40.0F - this.rotationY - yaw * 20.0F), -MAX_HEAD_TURN, MAX_HEAD_TURN);
         state.xRot = -pitch * 20.0F;
 
         Quaternionf tilt = new Quaternionf().rotateX(pitch * 20.0F * Mth.DEG_TO_RAD);

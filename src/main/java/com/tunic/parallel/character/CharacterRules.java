@@ -1,6 +1,8 @@
 package com.tunic.parallel.character;
 
 import com.tunic.parallel.ParallelPlayers;
+import com.tunic.parallel.config.ParallelPermissions;
+import com.tunic.parallel.config.ServerConfig;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
@@ -24,11 +26,16 @@ public final class CharacterRules {
      * active, or the active one has no mode yet and will take the world's)
      */
     public static Optional<Refusal> check(CharacterMode world) {
-        CharacterStore store = ParallelPlayers.characters();
-        Optional<UUID> active = ParallelPlayers.activeCharacter().get();
-        if (active.isEmpty()) {
+        return check(world, ParallelPlayers.activeCharacter().get());
+    }
+
+    /** {@link #check(CharacterMode)} for a given character; empty means the account, which may go anywhere. */
+    private static Optional<Refusal> check(CharacterMode world, Optional<UUID> active) {
+        ServerConfig config = ServerConfig.get();
+        if (active.isEmpty() || !config.charactersEnabled || !config.enforceModes) {
             return Optional.empty();
         }
+        CharacterStore store = ParallelPlayers.characters();
         CharacterMeta character = store.get(active.get()).orElse(null);
         if (character == null) {
             return Optional.empty();
@@ -65,25 +72,26 @@ public final class CharacterRules {
     }
 
     /**
-     * Runs when the singleplayer owner has joined a world: refuses a mismatched character (the safety net
-     * for entry points the menus do not cover, such as creating a new world), and otherwise gives a
-     * character that has no mode yet the world's mode.
+     * Runs when a player has joined a world: refuses a mismatched character (the safety net for entry
+     * points the menus do not cover, such as creating a new world), unless the player may bypass the
+     * rule, and otherwise gives a character that has no mode yet the world's mode.
      */
     public static Optional<Refusal> onJoin(MinecraftServer server, ServerPlayer player) {
-        if (!server.isSingleplayerOwner(player.nameAndId())) {
+        Optional<UUID> character = CharacterSwap.playingAs(server, player.nameAndId());
+        if (character.isEmpty()) {
             return Optional.empty();
         }
         WorldData data = server.getWorldData();
         CharacterMode world = CharacterMode.ofWorld(data.isHardcore(), data.getGameType(), data.isAllowCommands());
-        Optional<Refusal> refusal = check(world);
-        if (refusal.isPresent()) {
+        Optional<Refusal> refusal = check(world, character);
+        if (refusal.isPresent() && !ParallelPermissions.bypassesModes(player)) {
             return refusal;
         }
         CharacterStore store = ParallelPlayers.characters();
-        ParallelPlayers.activeCharacter().get()
+        character
                 .flatMap(store::get)
-                .filter(character -> character.modeChoice() == null)
-                .ifPresent(character -> store.setMode(character.id(), world));
+                .filter(meta -> meta.modeChoice() == null)
+                .ifPresent(meta -> store.setMode(meta.id(), world));
         return Optional.empty();
     }
 

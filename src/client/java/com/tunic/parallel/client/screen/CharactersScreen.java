@@ -106,6 +106,9 @@ public class CharactersScreen extends Screen {
         this.accountSkin = this.minecraft.getSkinManager().createLookup(this.minecraft.getGameProfile(), false);
         this.doll = this.addRenderableWidget(new CharacterDollWidget(
                 DollPanelLayout.DOLL_MIN_WIDTH, DollPanelLayout.DOLL_MIN_HEIGHT, this.minecraft, this.accountSkin));
+        // The doll is new each time the screen is set up (coming back from another screen, or a resize), so
+        // it has to be dressed again even when the same character stays selected.
+        this.dollCharacter = null;
 
         GridLayout footer = this.layout.addToFooter(new GridLayout().columnSpacing(8).rowSpacing(4));
         footer.defaultCellSetting().alignHorizontallyCenter();

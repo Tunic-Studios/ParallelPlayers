@@ -78,6 +78,32 @@ public class ParallelPlayersLangProvider extends FabricLanguageProvider {
         builder.add("parallel.newworld.create", "Create a %s character");
         builder.add("parallel.newworld.without", "Play without a character");
 
+        // Settings screen
+        builder.add("parallel.settings.title", "Parallel Players Settings");
+        builder.add("parallel.settings.section.display", "Display");
+        builder.add("parallel.settings.doll_follows_cursor", "Doll Follows Cursor");
+        builder.add("parallel.settings.doll_follows_cursor.tooltip", "The paper doll on the character screens turns to look at the mouse.");
+        builder.add("parallel.settings.doll_shows_armor", "Doll Armor");
+        builder.add("parallel.settings.doll_shows_armor.tooltip", "The paper doll wears the character's armor and anything else on its head.");
+        builder.add("parallel.settings.doll_shows_items", "Doll Items");
+        builder.add("parallel.settings.doll_shows_items.tooltip", "The paper doll holds the items in the character's hands.");
+        builder.add("parallel.settings.section.characters", "Characters");
+        builder.add("parallel.settings.backup_limit", "Backups");
+        builder.add("parallel.settings.backup_limit.tooltip", "How many earlier copies of each character's data to keep, one made each time it enters a world. Lowering this deletes the oldest copies the next time a character is played.");
+        builder.add("parallel.settings.backup_timing", "Back Up");
+        builder.add("parallel.settings.backup_timing.enter_world", "Entering a World");
+        builder.add("parallel.settings.backup_timing.enter_world.tooltip", "Each time a character enters a world.");
+        builder.add("parallel.settings.backup_timing.world_save", "Every Save");
+        builder.add("parallel.settings.backup_timing.world_save.tooltip", "Before every save, autosaves included. Gives the most restore points, but fills up the backup limit fastest.");
+        builder.add("parallel.settings.backup_timing.game_launch", "Once per Launch");
+        builder.add("parallel.settings.backup_timing.game_launch.tooltip", "The first time each character enters a world after starting the game.");
+        builder.add("parallel.settings.section.worlds", "Your Worlds");
+        builder.add("parallel.settings.section.worlds.note", "Applies to your singleplayer worlds and LAN games you host. Servers have their own config/parallel/server.json.");
+        builder.add("parallel.settings.characters_enabled", "Characters");
+        builder.add("parallel.settings.characters_enabled.tooltip", "When off, every world uses its own player data, as it would without the mod.");
+        builder.add("parallel.settings.enforce_modes", "Mode Rules");
+        builder.add("parallel.settings.enforce_modes.tooltip", "Characters can only enter worlds of their own mode: survival, creative or hardcore.");
+
         // In-game nickname hover
         builder.add("parallel.nickname.username", "%s");
     }
