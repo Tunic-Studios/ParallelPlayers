@@ -379,23 +379,24 @@ public final class CharacterSwap {
      * it stays the same when the world is renamed.
      */
     private static synchronized String worldId(MinecraftServer server) {
-        if (worldId != null) {
-            return worldId;
+        String known = worldId;
+        if (known != null) {
+            return known;
         }
         Path file = modFolder(server).resolve(WORLD_ID_FILE);
+        String id;
         try {
-            if (Files.isRegularFile(file)) {
-                worldId = Files.readString(file, StandardCharsets.UTF_8).strip();
-            }
-            if (worldId == null || worldId.isEmpty()) {
-                worldId = UUID.randomUUID().toString();
+            id = Files.isRegularFile(file) ? Files.readString(file, StandardCharsets.UTF_8).strip() : "";
+            if (id.isEmpty()) {
+                id = UUID.randomUUID().toString();
                 Files.createDirectories(file.getParent());
-                Files.writeString(file, worldId, StandardCharsets.UTF_8);
+                Files.writeString(file, id, StandardCharsets.UTF_8);
             }
         } catch (IOException e) {
             LOGGER.error("Could not read or write {}; locations in this world will not be remembered", file, e);
-            worldId = "unknown";
+            id = "unknown";
         }
-        return worldId;
+        worldId = id;
+        return id;
     }
 }
