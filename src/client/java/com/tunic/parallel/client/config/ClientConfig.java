@@ -17,7 +17,7 @@ public final class ClientConfig {
     /** Whether the paper doll on the character screens turns to look at the cursor. */
     public boolean dollFollowsCursor = true;
 
-    /** Whether the paper doll wears the character's armor, and anything else worn on the head. */
+    /** Whether the paper doll wears the character's armour, and anything else worn on the head. */
     public boolean dollShowsArmor = true;
 
     /** Whether the paper doll holds the character's items. */

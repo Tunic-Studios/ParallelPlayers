@@ -94,7 +94,7 @@ public class CharacterDollWidget extends AbstractWidget {
         state.legsEquipment = renderableArmor(loadout.legs(), EquipmentSlot.LEGS);
         state.feetEquipment = renderableArmor(loadout.feet(), EquipmentSlot.FEET);
 
-        // Worn skulls and blocks that are not armor are drawn through the head item instead.
+        // Worn skulls and blocks that are not armour are drawn through the head item instead.
         state.headItem.clear();
         state.wornHeadType = null;
         state.wornHeadProfile = null;
