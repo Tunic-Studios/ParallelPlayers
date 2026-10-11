@@ -22,7 +22,7 @@ loom {
     }
 
     mods {
-        "parallelplayers" {
+        "parallel" {
             sourceSet sourceSets.main
             sourceSet sourceSets.client
         }

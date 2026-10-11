@@ -1,0 +1,18 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "com.tunic.parallel.mixin.client",
+  "compatibilityLevel": "JAVA_25",
+  "client": [
+    "AbstractClientPlayerMixin",
+    "CreateWorldScreenMixin",
+    "TitleScreenMixin",
+    "WorldOpenFlowsMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  },
+  "overwrites": {
+    "requireAnnotations": true
+  }
+}

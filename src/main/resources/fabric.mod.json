@@ -1,29 +1,29 @@
 {
   "schemaVersion": 1,
-  "id": "parallelplayers",
+  "id": "parallel",
   "version": "${version}",
   "name": "Parallel Players",
   "description": "",
   "authors": [],
   "contact": {},
   "license": "MIT",
-  "icon": "assets/parallelplayers/icon.png",
+  "icon": "assets/parallel/icon.png",
   "environment": "*",
   "entrypoints": {
     "fabric-datagen": [
-      "com.tunic.parallel_players.client.ParallelPlayersDataGenerator"
+      "com.tunic.parallel.client.ParallelPlayersDataGenerator"
     ],
     "client": [
-      "com.tunic.parallel_players.client.ParallelPlayersClient"
+      "com.tunic.parallel.client.ParallelPlayersClient"
     ],
     "main": [
-      "com.tunic.parallel_players.ParallelPlayers"
+      "com.tunic.parallel.ParallelPlayers"
     ]
   },
   "mixins": [
-    "parallelplayers.mixins.json",
+    "parallel.mixins.json",
     {
-      "config": "parallelplayers.client.mixins.json",
+      "config": "parallel.client.mixins.json",
       "environment": "client"
     }
   ],
