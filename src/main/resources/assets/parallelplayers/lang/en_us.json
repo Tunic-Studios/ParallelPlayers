@@ -1,0 +1,20 @@
+{
+  "parallelplayers.characters.title": "Characters",
+  "parallelplayers.characters.button": "Manage your characters",
+  "parallelplayers.characters.select": "Select",
+  "parallelplayers.characters.deselect": "Deselect",
+  "parallelplayers.characters.new": "New Character",
+  "parallelplayers.characters.rename": "Rename",
+  "parallelplayers.characters.delete": "Delete",
+  "parallelplayers.characters.delete.title": "Delete this character?",
+  "parallelplayers.characters.delete.message": "\"%s\" and all of its data will be permanently lost.",
+  "parallelplayers.characters.active": "Active",
+  "parallelplayers.characters.last_played": "Last played: %s",
+  "parallelplayers.characters.empty": "No characters yet. Create one to get started.",
+  "parallelplayers.characters.playing_as": "Playing as %s",
+  "parallelplayers.characters.vanilla_hint": "No character selected: worlds use their own player data.",
+  "parallelplayers.characters.name": "Character name",
+  "parallelplayers.characters.name.new": "Create a new Character",
+  "parallelplayers.characters.name.rename": "Rename Character",
+  "parallelplayers.nickname.username": "%s"
+}

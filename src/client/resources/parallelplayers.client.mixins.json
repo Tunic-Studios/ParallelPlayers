@@ -4,6 +4,7 @@
   "package": "com.tunic.parallel_players.mixin.client",
   "compatibilityLevel": "JAVA_25",
   "client": [
+    "TitleScreenMixin"
   ],
   "injectors": {
     "defaultRequire": 1

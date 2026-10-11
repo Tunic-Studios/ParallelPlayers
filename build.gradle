@@ -16,8 +16,8 @@ loom {
     runs {
         client {
             // DevAuth is disabled by default; enable it for this project's dev client
-            vmArg "-Ddevauth.enabled=true"
-            vmArg "-Ddevauth.account=main"
+            jvmArguments.add "-Ddevauth.enabled=true"
+            jvmArguments.add "-Ddevauth.account=main"
         }
     }
 
@@ -36,6 +36,13 @@ fabricApi {
 }
 
 repositories {
+    maven {
+        name = 'TerraformersMC'
+        url = 'https://maven.terraformersmc.com/releases'
+        content {
+            includeGroup 'com.terraformersmc'
+        }
+    }
     maven {
         name = 'DevAuth'
         url = 'https://pkgs.dev.azure.com/djtheredstoner/DevAuth/_packaging/public/maven/v1'
@@ -59,18 +66,24 @@ dependencies {
 
     // Lets you log in with a real Microsoft account in the dev client
     runtimeOnly "me.djtheredstoner:DevAuth-fabric:${project.devauth_version}"
+
+    // Mod list screen in the dev client
+    runtimeOnly "com.terraformersmc:modmenu:${project.modmenu_version}"
 }
 
 processResources {
-    inputs.property "version", project.version
-    inputs.property "minecraft_version", project.minecraft_version
-    inputs.property "loader_version", project.loader_version
-    filteringCharset "UTF-8"
+    // Read at configuration time: the expand closure below runs at execution time, where touching
+    // the project is deprecated (and unsupported with the configuration cache).
+    def resourceProperties = [
+            "version"          : project.version,
+            "minecraft_version": project.minecraft_version,
+            "loader_version"   : project.loader_version,
+    ]
+    inputs.properties resourceProperties
+    filteringCharset = "UTF-8"
 
     filesMatching("fabric.mod.json") {
-        expand "version": project.version,
-                "minecraft_version": project.minecraft_version,
-                "loader_version": project.loader_version
+        expand resourceProperties
     }
 }
 
