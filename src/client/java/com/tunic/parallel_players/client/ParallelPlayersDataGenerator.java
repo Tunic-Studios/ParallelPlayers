@@ -8,5 +8,6 @@ public class ParallelPlayersDataGenerator implements DataGeneratorEntrypoint {
     @Override
     public void onInitializeDataGenerator(FabricDataGenerator fabricDataGenerator) {
         FabricDataGenerator.Pack pack = fabricDataGenerator.createPack();
+        pack.addProvider(ParallelPlayersLangProvider::new);
     }
 }

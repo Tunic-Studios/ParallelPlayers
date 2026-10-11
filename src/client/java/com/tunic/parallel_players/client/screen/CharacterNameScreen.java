@@ -5,8 +5,10 @@ import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.components.StringWidget;
 import net.minecraft.client.gui.layouts.LinearLayout;
 import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.client.input.KeyEvent;
 import net.minecraft.network.chat.CommonComponents;
 import net.minecraft.network.chat.Component;
+import org.jspecify.annotations.NonNull;
 
 import java.util.function.Consumer;
 
@@ -18,12 +20,18 @@ public class CharacterNameScreen extends Screen {
     private final Screen parent;
     private final String initialName;
     private final Consumer<String> onConfirm;
+    private final Component confirmLabel;
     private final LinearLayout layout = LinearLayout.vertical().spacing(8);
     private EditBox nameBox;
     private Button confirmButton;
 
     public CharacterNameScreen(Screen parent, Component title, String initialName, Consumer<String> onConfirm) {
+        this(parent, title, initialName, CommonComponents.GUI_DONE, onConfirm);
+    }
+
+    public CharacterNameScreen(Screen parent, Component title, String initialName, Component confirmLabel, Consumer<String> onConfirm) {
         super(title);
+        this.confirmLabel = confirmLabel;
         this.parent = parent;
         this.initialName = initialName;
         this.onConfirm = onConfirm;
@@ -41,8 +49,8 @@ public class CharacterNameScreen extends Screen {
 
         LinearLayout buttons = this.layout.addChild(LinearLayout.horizontal().spacing(4));
         buttons.defaultCellSetting().paddingTop(8);
-        this.confirmButton = buttons.addChild(Button.builder(CommonComponents.GUI_DONE, button -> this.confirm()).width(98).build());
         buttons.addChild(Button.builder(CommonComponents.GUI_CANCEL, button -> this.onClose()).width(98).build());
+        this.confirmButton = buttons.addChild(Button.builder(this.confirmLabel, button -> this.confirm()).width(98).build());
         this.confirmButton.active = !this.nameBox.getValue().isBlank();
 
         this.layout.visitWidgets(this::addRenderableWidget);
@@ -56,6 +64,18 @@ public class CharacterNameScreen extends Screen {
     }
 
     @Override
+    public boolean keyPressed(@NonNull KeyEvent event) {
+        // Enter (also on the numpad) confirms, like pressing the button: ignored while the name is blank.
+        if (event.isConfirmation()) {
+            if (this.confirmButton.active) {
+                this.confirm();
+            }
+            return true;
+        }
+        return super.keyPressed(event);
+    }
+
+    @Override
     protected void setInitialFocus() {
         this.setInitialFocus(this.nameBox);
     }
@@ -63,8 +83,9 @@ public class CharacterNameScreen extends Screen {
     private void confirm() {
         String name = this.nameBox.getValue().strip();
         if (!name.isEmpty()) {
-            this.onConfirm.accept(name);
+            // Return first: the callback may open another screen, which must not be replaced afterwards.
             this.minecraft.gui.setScreen(this.parent);
+            this.onConfirm.accept(name);
         }
     }
 

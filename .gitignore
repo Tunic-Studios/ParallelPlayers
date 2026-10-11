@@ -19,3 +19,6 @@ hs_err_pid*
 
 # Common working directory
 run
+
+# Data generator cache (the generated assets themselves are committed)
+src/main/generated/.cache/

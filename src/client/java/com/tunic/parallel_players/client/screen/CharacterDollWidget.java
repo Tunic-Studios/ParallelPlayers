@@ -45,7 +45,7 @@ public class CharacterDollWidget extends AbstractWidget {
     private static final float VIEW_WIDTH_BLOCKS = 1.5F;
 
     private final Minecraft minecraft;
-    private final Supplier<PlayerSkin> skin;
+    private Supplier<PlayerSkin> skin;
     private final AvatarRenderState state = new AvatarRenderState();
     private float rotationY = 30.0F;
     private final long startNanos = System.nanoTime();
@@ -59,6 +59,11 @@ public class CharacterDollWidget extends AbstractWidget {
         this.state.boundingBoxHeight = PLAYER_HEIGHT;
         this.state.eyeHeight = 1.62F;
         this.setLoadout(CharacterLoadout.EMPTY);
+    }
+
+    /** Changes which skin the doll is drawn with; the supplier is read every frame. */
+    public void setSkin(Supplier<PlayerSkin> skin) {
+        this.skin = skin;
     }
 
     /** Dresses the doll in what the character wears and holds. */

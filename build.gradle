@@ -76,8 +76,8 @@ processResources {
     // the project is deprecated (and unsupported with the configuration cache).
     def resourceProperties = [
             "version"          : project.version,
-            "minecraft_version": project.minecraft_version,
-            "loader_version"   : project.loader_version,
+            "minecraft_version": providers.gradleProperty("minecraft_version").get(),
+            "loader_version"   : providers.gradleProperty("loader_version").get(),
     ]
     inputs.properties resourceProperties
     filteringCharset = "UTF-8"
@@ -111,8 +111,9 @@ java {
 }
 
 jar {
+    def baseName = providers.gradleProperty("archives_base_name").get()
     from("LICENSE") {
-        rename { "${it}_${project.archives_base_name}" }
+        rename { "${it}_${baseName}" }
     }
 }
 
@@ -120,7 +121,7 @@ jar {
 publishing {
     publications {
         create("mavenJava", MavenPublication) {
-            artifactId = project.archives_base_name
+            artifactId = providers.gradleProperty("archives_base_name").get()
             from components.java
         }
     }

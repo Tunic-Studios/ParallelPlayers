@@ -3,6 +3,7 @@ package com.tunic.parallel_players.character;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonParseException;
+import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -30,6 +31,7 @@ import java.util.stream.Stream;
  *     meta.json        {@link CharacterMeta}
  *     playerdata.dat   opaque player data blob (written by the world-swap code)
  *     appearance.dat   what the character wears and holds, for the menu
+ *     skin.png         imported skin image, when the character uses a custom skin
  *     stats.json       statistics, read and written by vanilla's stats counter
  *     advancements.json  advancement progress, read and written by vanilla
  *     backup/          previous playerdata.dat copies, newest first
@@ -43,6 +45,7 @@ public final class CharacterStore {
     static final String META_FILE = "meta.json";
     static final String DATA_FILE = "playerdata.dat";
     static final String APPEARANCE_FILE = "appearance.dat";
+    static final String SKIN_FILE = "skin.png";
     static final String STATS_FILE = "stats.json";
     static final String ADVANCEMENTS_FILE = "advancements.json";
     static final String BACKUP_DIR = "backup";
@@ -84,9 +87,47 @@ public final class CharacterStore {
 
     public CharacterMeta create(String name) {
         long now = System.currentTimeMillis();
-        CharacterMeta meta = new CharacterMeta(UUID.randomUUID(), sanitizeName(name), now, now);
+        CharacterMeta meta = new CharacterMeta(UUID.randomUUID(), sanitizeName(name), now, now, null, false);
         writeMeta(meta);
         return meta;
+    }
+
+    /**
+     * Creates a character that already has its skin chosen.
+     *
+     * @param image the PNG for {@link CharacterSkin#CUSTOM}, otherwise ignored
+     */
+    public CharacterMeta create(String name, CharacterSkin skin, byte @Nullable [] image) {
+        CharacterMeta meta = create(name);
+        setSkin(meta.id(), skin, image);
+        return get(meta.id()).orElse(meta);
+    }
+
+    /**
+     * Changes the character's skin.
+     *
+     * @param image the PNG to store when {@code skin} is {@link CharacterSkin#CUSTOM}; if {@code null} the
+     *              image already stored is kept. A custom skin without any image falls back to the account skin.
+     */
+    public void setSkin(UUID id, CharacterSkin skin, byte @Nullable [] image) {
+        require(id);
+        Path file = skinFile(id);
+        try {
+            if (skin.isCustom() && image != null) {
+                writeAtomically(file, image);
+            } else if (!skin.isCustom()) {
+                Files.deleteIfExists(file);
+            }
+        } catch (IOException e) {
+            throw new UncheckedIOException("Failed to write skin for " + id, e);
+        }
+        CharacterSkin effective = skin.isCustom() && !Files.isRegularFile(file) ? CharacterSkin.ACCOUNT : skin;
+        writeMeta(require(id).withSkin(effective));
+    }
+
+    /** Where an imported skin image is kept; only present for {@link CharacterSkin#CUSTOM}. */
+    public Path skinFile(UUID id) {
+        return dir(id).resolve(SKIN_FILE);
     }
 
     public void rename(UUID id, String newName) {
