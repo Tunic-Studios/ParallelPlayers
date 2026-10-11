@@ -200,8 +200,8 @@ public final class CharacterSwap {
             Optional<CharacterMeta> ours = storage.get(id);
             if (ours.isPresent() && ours.get().savedAt() > upload.meta().savedAt()) {
                 LOGGER.info("{}'s character {} is newer on this server than on their client, sending it back", player.name(), id);
-                storage.importIdentity(upload.meta());
-                newer = storage.export(id).orElse(null);
+                storage.importIdentity(upload);
+                newer = storage.export(id, false).orElse(null);
             } else {
                 storage.importBundle(upload, false);
             }
@@ -302,7 +302,7 @@ public final class CharacterSwap {
             if (session.remote()) {
                 // Keep the client's copy up to date. The last save, made as the player leaves, cannot reach
                 // them any more; the next time they join, the server sees its copy is newer and sends it.
-                storage.export(id).ifPresent(bundle -> CharacterSync.send(player, bundle));
+                storage.export(id, false).ifPresent(bundle -> CharacterSync.send(player, bundle));
             }
         } catch (Exception e) {
             LOGGER.error("Failed to save character {}", id, e);

@@ -54,10 +54,15 @@ public final class ClientCharacterSync {
     @SuppressWarnings("resource")
     public static void register() {
         // A new connection starts as the account; a server with the mod says otherwise while connecting.
-        ClientConfigurationConnectionEvents.INIT.register((listener, client) -> playingAs = null);
+        ClientConfigurationConnectionEvents.INIT.register((listener, client) -> {
+            playingAs = null;
+            CharacterSkins.clearOtherPlayers();
+        });
         ClientPlayConnectionEvents.DISCONNECT.register((listener, client) -> {
             playingAs = null;
             pendingLeave = null;
+            // Textures are released on the client thread.
+            client.execute(CharacterSkins::clearOtherPlayers);
         });
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
             Connection waiting = choosingFor;
@@ -88,6 +93,11 @@ public final class ClientCharacterSync {
                 }));
         ClientPlayNetworking.registerGlobalReceiver(CharacterPayloads.Sync.TYPE, (payload, context) -> saveLocally(payload.character()));
         ClientPlayNetworking.registerGlobalReceiver(CharacterPayloads.LeaveReady.TYPE, (payload, context) -> finishLeaving());
+        ClientPlayNetworking.registerGlobalReceiver(CharacterPayloads.PlayerSkins.TYPE, (payload, context) -> {
+            for (CharacterPayloads.PlayerSkins.Entry entry : payload.skins()) {
+                CharacterSkins.setOtherPlayer(entry.player(), entry.skin(), entry.image());
+            }
+        });
     }
 
     /**
@@ -169,7 +179,7 @@ public final class ClientCharacterSync {
 
     private static @Nullable CharacterBundle activeCharacter() {
         try {
-            return ParallelPlayers.activeCharacter().get().flatMap(ParallelPlayers.characters()::export).orElse(null);
+            return ParallelPlayers.activeCharacter().get().flatMap(id -> ParallelPlayers.characters().export(id, true)).orElse(null);
         } catch (RuntimeException e) {
             LOGGER.error("Could not read the active character to send to the server; joining as the account", e);
             return null;

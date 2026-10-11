@@ -2,15 +2,18 @@ package com.tunic.parallel.network;
 
 import com.tunic.parallel.ParallelPlayers;
 import com.tunic.parallel.character.CharacterBundle;
+import com.tunic.parallel.character.CharacterSkin;
 import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
 import net.minecraft.core.UUIDUtil;
 import net.minecraft.network.FriendlyByteBuf;
+import net.minecraft.network.codec.ByteBufCodecs;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.resources.Identifier;
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
 
+import java.util.List;
 import java.util.UUID;
 
 /**
@@ -25,6 +28,9 @@ import java.util.UUID;
  * Then, while they play, the server sends the character after every save ({@link Sync}). When they leave,
  * the client asks for one last save ({@link Leave}) and disconnects once it has it ({@link LeaveReady}):
  * the save vanilla makes after the connection is gone could not reach the client any more.
+ *
+ * <p>The server also tells every client with the mod which skin each player's character has
+ * ({@link PlayerSkins}), so characters look like themselves to everyone.
  */
 public final class CharacterPayloads {
 
@@ -38,6 +44,7 @@ public final class CharacterPayloads {
         PayloadTypeRegistry.clientboundPlay().registerLarge(Sync.TYPE, Sync.STREAM_CODEC, CharacterBundle.MAX_SIZE);
         PayloadTypeRegistry.serverboundPlay().register(Leave.TYPE, Leave.STREAM_CODEC);
         PayloadTypeRegistry.clientboundPlay().register(LeaveReady.TYPE, LeaveReady.STREAM_CODEC);
+        PayloadTypeRegistry.clientboundPlay().registerLarge(PlayerSkins.TYPE, PlayerSkins.STREAM_CODEC, PlayerSkins.MAX_SIZE);
     }
 
     private static <T extends CustomPacketPayload> CustomPacketPayload.Type<T> payloadType(String name) {
@@ -118,6 +125,47 @@ public final class CharacterPayloads {
         @Override
         public @NonNull Type<LeaveReady> type() {
             return TYPE;
+        }
+    }
+
+    /**
+     * Server to client, while playing: the skins of players' characters.
+     *
+     * @param skins one entry per player; a player whose entry has no skin is shown with their account's skin
+     */
+    public record PlayerSkins(List<Entry> skins) implements CustomPacketPayload {
+
+        /** Enough for a full server of imported skins. */
+        public static final int MAX_SIZE = 64 * (CharacterBundle.MAX_SKIN_SIZE + 1024);
+        public static final Type<PlayerSkins> TYPE = payloadType("player_skins");
+        public static final StreamCodec<FriendlyByteBuf, PlayerSkins> STREAM_CODEC = Entry.STREAM_CODEC
+                .apply(ByteBufCodecs.list())
+                .map(PlayerSkins::new, PlayerSkins::skins);
+
+        @Override
+        public @NonNull Type<PlayerSkins> type() {
+            return TYPE;
+        }
+
+        /**
+         * @param skin  the character's skin, or {@code null} for the account's own
+         * @param image the PNG for an imported skin ({@link CharacterSkin#CUSTOM}), otherwise {@code null}
+         */
+        public record Entry(UUID player, @Nullable CharacterSkin skin, byte @Nullable [] image) {
+
+            public static final StreamCodec<FriendlyByteBuf, Entry> STREAM_CODEC = StreamCodec.of(
+                    (buf, entry) -> {
+                        buf.writeUUID(entry.player());
+                        buf.writeNullable(entry.skin(), (out, skin) -> {
+                            out.writeNullable(skin.id(), FriendlyByteBuf::writeUtf);
+                            out.writeBoolean(skin.slim());
+                        });
+                        buf.writeNullable(entry.image(), (out, bytes) -> out.writeByteArray(bytes));
+                    },
+                    buf -> new Entry(
+                            buf.readUUID(),
+                            buf.readNullable(in -> new CharacterSkin(in.readNullable(FriendlyByteBuf::readUtf), in.readBoolean())),
+                            buf.readNullable(in -> in.readByteArray(CharacterBundle.MAX_SKIN_SIZE))));
         }
     }
 

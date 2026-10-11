@@ -4,10 +4,10 @@
   "package": "com.tunic.parallel.mixin.client",
   "compatibilityLevel": "JAVA_25",
   "client": [
-    "AbstractClientPlayerMixin",
     "ClientCommonPacketListenerImplAccessor",
     "CreateWorldScreenMixin",
     "MinecraftMixin",
+    "PlayerInfoMixin",
     "TitleScreenMixin",
     "WorldOpenFlowsMixin"
   ],

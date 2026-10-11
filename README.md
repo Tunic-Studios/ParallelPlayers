@@ -51,6 +51,7 @@ singleplayer worlds and on servers that have the mod installed.
   Leaving from the pause menu waits for the last save, so the progress is there in singleplayer too.
 - If the server's copy is newer than yours (for example, the game closed before the last save arrived),
   the server's copy is used and sent back to you.
+- If your active character can't join the server's kind of world, you pick another one while connecting.
 
 ### Settings and permissions
 - A settings screen, opened from [Mod Menu](https://modrinth.com/mod/modmenu) with various options to customize parallel players.

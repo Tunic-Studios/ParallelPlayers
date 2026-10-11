@@ -228,20 +228,41 @@ public final class CharacterStorage {
         writeMeta(require(id).withSavedAt(System.currentTimeMillis()));
     }
 
-    /** Everything about the character that travels to and from a server, or empty if there is no such character. */
-    public Optional<CharacterBundle> export(UUID id) {
+    /**
+     * Everything about the character that travels to and from a server, or empty if there is no such character.
+     *
+     * @param withSkin include the imported skin image: for the client sending its character to a server
+     */
+    public Optional<CharacterBundle> export(UUID id, boolean withSkin) {
         return get(id).map(meta -> new CharacterBundle(meta,
                 readOptional(dir(id).resolve(DATA_FILE)),
                 readOptional(dir(id).resolve(APPEARANCE_FILE)),
                 readOptionalText(statsFile(id)),
-                readOptionalText(advancementsFile(id))));
+                readOptionalText(advancementsFile(id)),
+                withSkin && meta.skinChoice().isCustom() ? readOptional(skinFile(id)) : null));
     }
 
-    /** Takes the name, skin and mode of a newer copy kept elsewhere, leaving everything else as it is here. */
-    public void importIdentity(CharacterMeta incoming) {
-        CharacterMeta local = require(incoming.id());
-        writeMeta(new CharacterMeta(local.id(), sanitizeName(incoming.name()), local.createdAt(), local.lastPlayedAt(),
-                incoming.skin(), incoming.slim(), local.mode() != null ? local.mode() : incoming.mode(), local.savedAt()));
+    /** Takes the name and skin of a newer copy kept elsewhere, and its mode if this one has none yet. */
+    public void importIdentity(CharacterBundle incoming) {
+        CharacterMeta from = incoming.meta();
+        CharacterMeta local = require(from.id());
+        writeMeta(new CharacterMeta(local.id(), sanitizeName(from.name()), local.createdAt(), local.lastPlayedAt(),
+                from.skin(), from.slim(), local.mode() != null ? local.mode() : from.mode(), local.savedAt()));
+        importSkinImage(incoming);
+    }
+
+    /** Keeps the bundle's skin image if its character uses an imported skin, and removes a stale one otherwise. */
+    private void importSkinImage(CharacterBundle bundle) {
+        Path file = skinFile(bundle.meta().id());
+        try {
+            if (!bundle.meta().skinChoice().isCustom()) {
+                Files.deleteIfExists(file);
+            } else if (bundle.skinImage() != null) {
+                writeAtomically(file, bundle.skinImage());
+            }
+        } catch (IOException e) {
+            throw new UncheckedIOException("Failed to store the skin of character " + bundle.meta().id(), e);
+        }
     }
 
     /**
@@ -275,6 +296,9 @@ public final class CharacterStorage {
             }
             if (bundle.advancements() != null) {
                 writeAtomically(advancementsFile(id), bundle.advancements().getBytes(StandardCharsets.UTF_8));
+            }
+            if (!keepIdentity) {
+                importSkinImage(bundle);
             }
         } catch (IOException e) {
             throw new UncheckedIOException("Failed to store character " + id, e);

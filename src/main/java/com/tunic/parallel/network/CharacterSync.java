@@ -2,12 +2,15 @@ package com.tunic.parallel.network;
 
 import com.tunic.parallel.ParallelPlayers;
 import com.tunic.parallel.character.CharacterBundle;
+import com.tunic.parallel.character.CharacterMeta;
+import com.tunic.parallel.character.CharacterSkin;
 import com.tunic.parallel.character.CharacterMode;
 import com.tunic.parallel.character.CharacterSwap;
 import com.tunic.parallel.config.ParallelPermissions;
 import com.tunic.parallel.config.ServerConfig;
 import net.fabricmc.fabric.api.networking.v1.ServerConfigurationConnectionEvents;
 import net.fabricmc.fabric.api.networking.v1.ServerConfigurationNetworking;
+import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.network.protocol.Packet;
 import net.minecraft.server.MinecraftServer;
@@ -18,7 +21,14 @@ import net.minecraft.server.players.NameAndId;
 import net.minecraft.world.level.storage.WorldData;
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -35,6 +45,8 @@ public final class CharacterSync {
     /** Players who have been asked for their character and have not answered yet. */
     private static final Set<UUID> ASKED = ConcurrentHashMap.newKeySet();
 
+    private static final Logger LOGGER = LoggerFactory.getLogger(ParallelPlayers.MOD_ID);
+
     private CharacterSync() {
     }
 
@@ -42,6 +54,7 @@ public final class CharacterSync {
         ServerConfigurationConnectionEvents.CONFIGURE.register(CharacterSync::onConfigure);
         ServerConfigurationConnectionEvents.DISCONNECT.register((listener, server) -> ASKED.remove(listener.getOwner().id()));
         ServerConfigurationNetworking.registerGlobalReceiver(CharacterPayloads.Upload.TYPE, CharacterSync::onUpload);
+        ServerPlayConnectionEvents.JOIN.register((handler, sender, server) -> shareSkins(server, handler.getPlayer()));
         // Play-phase handlers run on the server thread.
         ServerPlayNetworking.registerGlobalReceiver(CharacterPayloads.Leave.TYPE, (payload, context) -> {
             CharacterSwap.saveBeforeLeaving(context.server(), context.player());
@@ -53,6 +66,55 @@ public final class CharacterSync {
     public static void send(ServerPlayer player, CharacterBundle character) {
         if (ServerPlayNetworking.canSend(player, CharacterPayloads.Sync.TYPE)) {
             ServerPlayNetworking.send(player, new CharacterPayloads.Sync(character));
+        }
+    }
+
+    /**
+     * Shows a player who just joined with their character's skin to everyone else, and everyone else's to them.
+     * The newcomer's entry is sent even when they play as their account, replacing anything a client still
+     * remembers for them from before.
+     */
+    private static void shareSkins(MinecraftServer server, ServerPlayer joined) {
+        CharacterPayloads.PlayerSkins.Entry theirs = skinOf(joined);
+        List<CharacterPayloads.PlayerSkins.Entry> others = new ArrayList<>();
+        for (ServerPlayer other : server.getPlayerList().getPlayers()) {
+            if (other == joined) {
+                continue;
+            }
+            CharacterPayloads.PlayerSkins.Entry entry = skinOf(other);
+            if (entry.skin() != null) {
+                others.add(entry);
+            }
+            if (ServerPlayNetworking.canSend(other, CharacterPayloads.PlayerSkins.TYPE)) {
+                ServerPlayNetworking.send(other, new CharacterPayloads.PlayerSkins(List.of(theirs)));
+            }
+        }
+        if (!others.isEmpty() && ServerPlayNetworking.canSend(joined, CharacterPayloads.PlayerSkins.TYPE)) {
+            ServerPlayNetworking.send(joined, new CharacterPayloads.PlayerSkins(others));
+        }
+    }
+
+    /** The skin of the player's character, or an entry without one when they play as their account. */
+    private static CharacterPayloads.PlayerSkins.Entry skinOf(ServerPlayer player) {
+        UUID id = player.getUUID();
+        CharacterSwap.Session session = CharacterSwap.session(player.nameAndId()).orElse(null);
+        CharacterMeta meta = session == null ? null : session.meta().orElse(null);
+        if (meta == null || meta.skinChoice().isAccount()) {
+            return new CharacterPayloads.PlayerSkins.Entry(id, null, null);
+        }
+        CharacterSkin skin = meta.skinChoice();
+        if (!skin.isCustom()) {
+            return new CharacterPayloads.PlayerSkins.Entry(id, skin, null);
+        }
+        try {
+            Path file = session.storage().skinFile(meta.id());
+            byte[] image = Files.isRegularFile(file) ? Files.readAllBytes(file) : null;
+            return image == null || image.length > CharacterBundle.MAX_SKIN_SIZE
+                    ? new CharacterPayloads.PlayerSkins.Entry(id, null, null)
+                    : new CharacterPayloads.PlayerSkins.Entry(id, skin, image);
+        } catch (IOException e) {
+            LOGGER.warn("Could not read the skin of {}'s character", player.getPlainTextName(), e);
+            return new CharacterPayloads.PlayerSkins.Entry(id, null, null);
         }
     }
 

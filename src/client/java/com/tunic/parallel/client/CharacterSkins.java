@@ -19,6 +19,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
@@ -37,6 +38,15 @@ public final class CharacterSkins {
 
     /** Imported skins already uploaded to the GPU, by character; dropped by {@link #invalidate}. */
     private static final Map<UUID, ClientAsset.ResourceTexture> CUSTOM = new HashMap<>();
+    /**
+     * The character skins of other players on the connected server, by player, as the server sent them. A
+     * player without an entry is drawn with their account's skin. Only touched on the client thread.
+     */
+    private static final Map<UUID, OtherSkin> OTHERS = new HashMap<>();
+
+    /** Another player's character skin; {@code texture} is set for an imported one. */
+    private record OtherSkin(CharacterSkin choice, ClientAsset.@Nullable ResourceTexture texture) {
+    }
 
     private CharacterSkins() {
     }
@@ -65,6 +75,67 @@ public final class CharacterSkins {
                 .flatMap(id -> ParallelPlayers.characters().get(id))
                 .map(meta -> resolve(meta, account))
                 .orElse(account);
+    }
+
+    /** The skin another player is shown with: their character's, if the server said they play one. */
+    public static PlayerSkin forOtherPlayer(UUID player, PlayerSkin account) {
+        OtherSkin other = OTHERS.get(player);
+        if (other == null) {
+            return account;
+        }
+        if (other.texture() != null) {
+            return with(other.texture(), other.choice().slim(), account);
+        }
+        return other.choice().isPreset() ? preset(other.choice(), account) : account;
+    }
+
+    /**
+     * Remembers another player's character skin, as the server sent it.
+     *
+     * @param skin  their character's skin, or {@code null} to show them with their account's skin again
+     * @param image the PNG of an imported skin
+     */
+    public static void setOtherPlayer(UUID player, @Nullable CharacterSkin skin, byte @Nullable [] image) {
+        forgetOtherPlayer(player);
+        if (skin == null) {
+            return;
+        }
+        if (!skin.isCustom()) {
+            OTHERS.put(player, new OtherSkin(skin, null));
+            return;
+        }
+        if (image == null) {
+            return;
+        }
+        try (NativeImage read = NativeImage.read(image)) {
+            if (validate(read).isPresent()) {
+                LOGGER.warn("Ignoring the skin the server sent for player {}: not {}x{}", player, SKIN_SIZE, SKIN_SIZE);
+                return;
+            }
+            Identifier textureId = otherPlayerId(player);
+            register(textureId, copy(read));
+            OTHERS.put(player, new OtherSkin(skin, texture(textureId)));
+        } catch (IOException e) {
+            LOGGER.warn("Ignoring the skin the server sent for player {}: not a PNG image", player, e);
+        }
+    }
+
+    /** Forgets every other player's skin; for when the client leaves a server. */
+    public static void clearOtherPlayers() {
+        for (UUID player : List.copyOf(OTHERS.keySet())) {
+            forgetOtherPlayer(player);
+        }
+    }
+
+    private static void forgetOtherPlayer(UUID player) {
+        OtherSkin previous = OTHERS.remove(player);
+        if (previous != null && previous.texture() != null) {
+            Minecraft.getInstance().getTextureManager().release(otherPlayerId(player));
+        }
+    }
+
+    private static Identifier otherPlayerId(UUID player) {
+        return Identifier.fromNamespaceAndPath(ParallelPlayers.MOD_ID, "textures/players/" + player + ".png");
     }
 
     /** The skin of the active character for the local player, or {@code account} when none applies. */
