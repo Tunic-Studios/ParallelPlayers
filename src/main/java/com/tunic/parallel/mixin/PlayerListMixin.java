@@ -3,10 +3,13 @@ package com.tunic.parallel.mixin;
 import com.llamalad7.mixinextras.injector.ModifyReturnValue;
 import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
 import com.llamalad7.mixinextras.injector.wrapoperation.WrapOperation;
+import com.llamalad7.mixinextras.sugar.Local;
 import com.mojang.authlib.GameProfile;
 import com.mojang.datafixers.DataFixer;
 import com.tunic.parallel.character.CharacterSwap;
+import net.minecraft.ChatFormatting;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.network.chat.Component;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.PlayerAdvancements;
 import net.minecraft.server.ServerAdvancementManager;
@@ -57,5 +60,29 @@ public abstract class PlayerListMixin {
     @Inject(method = "save", at = @At("TAIL"))
     private void parallel$saveCharacter(ServerPlayer player, CallbackInfo ci) {
         CharacterSwap.onSave(this.server, player);
+    }
+
+    /**
+     * "Username has joined the game as Character" for a player on a character. Vanilla's own message would
+     * only name the character, since the player's name is the character's while they play as it.
+     */
+    @WrapOperation(
+            method = "placeNewPlayer",
+            at = @At(value = "INVOKE", target = "Lnet/minecraft/server/players/PlayerList;broadcastSystemMessage(Lnet/minecraft/network/chat/Component;Z)V")
+    )
+    private void parallel$joinedAsCharacter(PlayerList playerList, Component message, boolean overlay, Operation<Void> original,
+                                            @Local(argsOnly = true, name = "player") ServerPlayer player) {
+        Component joined = CharacterSwap.nickname(player)
+                .<Component>map(character -> Component.translatableWithFallback("parallel.join.as", "%s has joined the game as %s",
+                                player.getGameProfile().name(), character)
+                        .withStyle(ChatFormatting.YELLOW))
+                .orElse(message);
+        original.call(playerList, joined, overlay);
+    }
+
+    /** After vanilla's last save of a leaving player, which still belongs to their character. */
+    @Inject(method = "remove", at = @At("TAIL"))
+    private void parallel$endSession(ServerPlayer player, CallbackInfo ci) {
+        CharacterSwap.onLeave(player);
     }
 }

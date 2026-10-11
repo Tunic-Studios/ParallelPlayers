@@ -4,7 +4,7 @@ import com.tunic.parallel.ParallelPlayers;
 import com.tunic.parallel.character.CharacterLoadout;
 import com.tunic.parallel.character.CharacterMeta;
 import com.tunic.parallel.character.CharacterMode;
-import com.tunic.parallel.character.CharacterStore;
+import com.tunic.parallel.character.CharacterStorage;
 import com.tunic.parallel.client.CharacterSkins;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
@@ -331,7 +331,7 @@ public class CharactersScreen extends Screen {
     private long accountPlayTimeTicks() {
         String statsName = this.minecraft.getUser().getProfileId() + ".json";
         try (Stream<Path> worlds = Files.list(this.minecraft.getLevelSource().getBaseDir())) {
-            return worlds.mapToLong(world -> CharacterStore.playTimeTicks(world.resolve("stats").resolve(statsName))).sum();
+            return worlds.mapToLong(world -> CharacterStorage.playTimeTicks(world.resolve("stats").resolve(statsName))).sum();
         } catch (IOException e) {
             return 0L;
         }

@@ -27,17 +27,21 @@ public final class CharacterRules {
      * active, or the active one has no mode yet and will take the world's)
      */
     public static Optional<Refusal> check(CharacterMode world) {
-        return check(world, ParallelPlayers.activeCharacter().get().orElse(null));
+        return check(world, ParallelPlayers.characters(), ParallelPlayers.activeCharacter().get().orElse(null), true);
     }
 
-    /** {@link #check(CharacterMode)} for a given character; {@code null} is the account, which may go anywhere. */
-    private static Optional<Refusal> check(CharacterMode world, @Nullable UUID active) {
+    /**
+     * {@link #check(CharacterMode)} for a given character; {@code null} is the account, which may go anywhere.
+     *
+     * @param suggest whether to name the other characters in {@code storage} that could join instead. Only for
+     *                the client's own storage: a server's copies are just the characters played there
+     */
+    private static Optional<Refusal> check(CharacterMode world, CharacterStorage storage, @Nullable UUID active, boolean suggest) {
         ServerConfig config = ServerConfig.get();
         if (active == null || !config.charactersEnabled || !config.enforceModes) {
             return Optional.empty();
         }
-        CharacterStore store = ParallelPlayers.characters();
-        CharacterMeta character = store.get(active).orElse(null);
+        CharacterMeta character = storage.get(active).orElse(null);
         if (character == null) {
             return Optional.empty();
         }
@@ -46,7 +50,7 @@ public final class CharacterRules {
             return Optional.empty();
         }
 
-        List<CharacterMeta> fitting = store.list().stream()
+        List<CharacterMeta> fitting = !suggest ? List.of() : storage.list().stream()
                 .filter(other -> {
                     CharacterMode otherMode = other.modeChoice();
                     return otherMode != null && otherMode.canJoin(world);
@@ -54,7 +58,9 @@ public final class CharacterRules {
                 .toList();
         Component modeName = Component.translatable(mode.translationKey());
         Component worldName = Component.translatable(world.translationKey());
-        Component suggestion = fitting.isEmpty()
+        Component suggestion = !suggest
+                ? Component.translatable("parallel.mode.blocked.server", worldName)
+                : fitting.isEmpty()
                 ? Component.translatable("parallel.mode.blocked.none", worldName)
                 : Component.translatable("parallel.mode.blocked.suggest",
                         fitting.stream().map(CharacterMeta::name).collect(java.util.stream.Collectors.joining(", ")));
@@ -78,21 +84,19 @@ public final class CharacterRules {
      * rule, and otherwise gives a character that has no mode yet the world's mode.
      */
     public static Optional<Refusal> onJoin(MinecraftServer server, ServerPlayer player) {
-        Optional<UUID> character = CharacterSwap.playingAs(server, player.nameAndId());
-        if (character.isEmpty()) {
+        CharacterSwap.Session session = CharacterSwap.session(player.nameAndId()).orElse(null);
+        if (session == null) {
             return Optional.empty();
         }
         WorldData data = server.getWorldData();
         CharacterMode world = CharacterMode.ofWorld(data.isHardcore(), data.getGameType(), data.isAllowCommands());
-        Optional<Refusal> refusal = check(world, character.get());
+        Optional<Refusal> refusal = check(world, session.storage(), session.character(), !session.remote());
         if (refusal.isPresent() && !ParallelPermissions.bypassesModes(player)) {
             return refusal;
         }
-        CharacterStore store = ParallelPlayers.characters();
-        character
-                .flatMap(store::get)
+        session.meta()
                 .filter(meta -> meta.modeChoice() == null)
-                .ifPresent(meta -> store.setMode(meta.id(), world));
+                .ifPresent(meta -> session.storage().setMode(meta.id(), world));
         return Optional.empty();
     }
 

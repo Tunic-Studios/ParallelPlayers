@@ -146,9 +146,9 @@ public record CharacterLoadout(ItemStack head, ItemStack chest, ItemStack legs, 
     }
 
     /** The character's last captured loadout, or {@link #EMPTY} if it has none yet. */
-    public static CharacterLoadout read(CharacterStore store, UUID id) {
+    public static CharacterLoadout read(CharacterStorage storage, UUID id) {
         try {
-            Optional<byte[]> bytes = store.readAppearance(id);
+            Optional<byte[]> bytes = storage.readAppearance(id);
             if (bytes.isEmpty()) {
                 return EMPTY;
             }

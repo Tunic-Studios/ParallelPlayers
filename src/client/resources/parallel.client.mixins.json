@@ -6,6 +6,7 @@
   "client": [
     "AbstractClientPlayerMixin",
     "CreateWorldScreenMixin",
+    "MinecraftMixin",
     "TitleScreenMixin",
     "WorldOpenFlowsMixin"
   ],

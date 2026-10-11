@@ -36,7 +36,7 @@ public abstract class PlayerMixin {
                 && original instanceof MutableComponent name
                 && CharacterSwap.nickname(player).isPresent()) {
             String username = player.getGameProfile().name();
-            Component hover = Component.translatableWithFallback("parallel.nickname.username", "Username: %s", username);
+            Component hover = Component.translatableWithFallback("parallel.nickname.username", "%s", username);
             return name.withStyle(style -> style.withHoverEvent(new HoverEvent.ShowText(hover)));
         }
         return original;

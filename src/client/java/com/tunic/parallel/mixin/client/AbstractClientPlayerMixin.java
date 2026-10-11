@@ -14,15 +14,17 @@ import org.spongepowered.asm.mixin.injection.At;
 public abstract class AbstractClientPlayerMixin {
 
     /**
-     * The local player is drawn with the active character's skin. Only in singleplayer: that is where the
-     * character system applies, and other players on a server should not be affected.
+     * The local player is drawn with their character's skin: the active one in singleplayer, and on a server
+     * the one the server accepted. Other players are drawn as usual.
      */
     @ModifyReturnValue(method = "getSkin", at = @At("RETURN"))
     private PlayerSkin parallel$characterSkin(PlayerSkin original) {
-        if (self() instanceof LocalPlayer && Minecraft.getInstance().isLocalServer()) {
-            return CharacterSkins.forActiveCharacter(original);
+        if (!(self() instanceof LocalPlayer)) {
+            return original;
         }
-        return original;
+        return Minecraft.getInstance().isLocalServer()
+                ? CharacterSkins.forActiveCharacter(original)
+                : CharacterSkins.forServerCharacter(original);
     }
 
     @Unique

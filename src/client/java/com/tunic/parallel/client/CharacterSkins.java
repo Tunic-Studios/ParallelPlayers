@@ -56,6 +56,17 @@ public final class CharacterSkins {
         return account;
     }
 
+    /**
+     * The skin of the character played on the connected server, or {@code account} when none is. Only for
+     * servers on other machines; in singleplayer it is {@link #forActiveCharacter}.
+     */
+    public static PlayerSkin forServerCharacter(PlayerSkin account) {
+        return ClientCharacterSync.playingAs()
+                .flatMap(id -> ParallelPlayers.characters().get(id))
+                .map(meta -> resolve(meta, account))
+                .orElse(account);
+    }
+
     /** The skin of the active character for the local player, or {@code account} when none applies. */
     public static PlayerSkin forActiveCharacter(PlayerSkin account) {
         if (!ServerConfig.get().charactersEnabled) {

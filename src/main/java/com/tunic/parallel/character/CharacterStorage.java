@@ -21,7 +21,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Stream;
 
 /**
- * On-disk store of characters, independent of any world.
+ * On-disk storage of characters, independent of any world.
  *
  * <pre>
  * root/
@@ -35,10 +35,10 @@ import java.util.stream.Stream;
  *     backup/          previous playerdata.dat copies, the newest {@link #setBackupLimit limit} of them
  * </pre>
  */
-public final class CharacterStore {
+public final class CharacterStorage {
 
     private static final Logger LOGGER = LoggerFactory.getLogger("parallel");
-    private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
+    static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
 
     static final String META_FILE = "meta.json";
     static final String DATA_FILE = "playerdata.dat";
@@ -57,7 +57,7 @@ public final class CharacterStore {
     /** Characters backed up since the game started, for {@link BackupTiming#GAME_LAUNCH}. */
     private final Set<UUID> backedUpThisLaunch = ConcurrentHashMap.newKeySet();
 
-    public CharacterStore(Path root) {
+    public CharacterStorage(Path root) {
         this.root = root;
     }
 
@@ -89,7 +89,7 @@ public final class CharacterStore {
 
     public CharacterMeta create(String name) {
         long now = System.currentTimeMillis();
-        CharacterMeta meta = new CharacterMeta(UUID.randomUUID(), sanitizeName(name), now, now, null, false, null);
+        CharacterMeta meta = new CharacterMeta(UUID.randomUUID(), sanitizeName(name), now, now, null, false, null, 0L);
         writeMeta(meta);
         return meta;
     }
@@ -221,6 +221,77 @@ public final class CharacterStore {
         } catch (IOException e) {
             throw new UncheckedIOException("Failed to write player data for " + id, e);
         }
+    }
+
+    /** Records that the character's player data was saved just now; see {@link CharacterMeta#savedAt()}. */
+    public void markSaved(UUID id) {
+        writeMeta(require(id).withSavedAt(System.currentTimeMillis()));
+    }
+
+    /** Everything about the character that travels to and from a server, or empty if there is no such character. */
+    public Optional<CharacterBundle> export(UUID id) {
+        return get(id).map(meta -> new CharacterBundle(meta,
+                readOptional(dir(id).resolve(DATA_FILE)),
+                readOptional(dir(id).resolve(APPEARANCE_FILE)),
+                readOptionalText(statsFile(id)),
+                readOptionalText(advancementsFile(id))));
+    }
+
+    /** Takes the name, skin and mode of a newer copy kept elsewhere, leaving everything else as it is here. */
+    public void importIdentity(CharacterMeta incoming) {
+        CharacterMeta local = require(incoming.id());
+        writeMeta(new CharacterMeta(local.id(), sanitizeName(incoming.name()), local.createdAt(), local.lastPlayedAt(),
+                incoming.skin(), incoming.slim(), local.mode() != null ? local.mode() : incoming.mode(), local.savedAt()));
+    }
+
+    /**
+     * Stores a character received from the other side, replacing this copy. The current player data is backed
+     * up first. Parts the bundle does not have are left as they are.
+     *
+     * @param keepIdentity keep this copy's name, skin and creation time: the client passes {@code true}, since
+     *                     those are only ever changed in its own menus while the server's copy may be older
+     */
+    public void importBundle(CharacterBundle bundle, boolean keepIdentity) {
+        CharacterMeta incoming = bundle.meta();
+        UUID id = incoming.id();
+        Optional<CharacterMeta> existing = get(id);
+        CharacterMeta meta = incoming.withName(sanitizeName(incoming.name()));
+        if (keepIdentity && existing.isPresent()) {
+            CharacterMeta local = existing.get();
+            meta = new CharacterMeta(id, local.name(), local.createdAt(), incoming.lastPlayedAt(),
+                    local.skin(), local.slim(), incoming.mode() != null ? incoming.mode() : local.mode(), incoming.savedAt());
+        }
+        writeMeta(meta);
+        backupPlayerData(id);
+        try {
+            if (bundle.playerData() != null) {
+                writeAtomically(dir(id).resolve(DATA_FILE), bundle.playerData());
+            }
+            if (bundle.appearance() != null) {
+                writeAtomically(dir(id).resolve(APPEARANCE_FILE), bundle.appearance());
+            }
+            if (bundle.stats() != null) {
+                writeAtomically(statsFile(id), bundle.stats().getBytes(StandardCharsets.UTF_8));
+            }
+            if (bundle.advancements() != null) {
+                writeAtomically(advancementsFile(id), bundle.advancements().getBytes(StandardCharsets.UTF_8));
+            }
+        } catch (IOException e) {
+            throw new UncheckedIOException("Failed to store character " + id, e);
+        }
+    }
+
+    private static byte @Nullable [] readOptional(Path file) {
+        try {
+            return Files.isRegularFile(file) ? Files.readAllBytes(file) : null;
+        } catch (IOException e) {
+            throw new UncheckedIOException("Failed to read " + file, e);
+        }
+    }
+
+    private static @Nullable String readOptionalText(Path file) {
+        byte[] bytes = readOptional(file);
+        return bytes == null ? null : new String(bytes, StandardCharsets.UTF_8);
     }
 
     /**

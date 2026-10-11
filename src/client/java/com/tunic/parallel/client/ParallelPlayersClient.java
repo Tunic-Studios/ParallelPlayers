@@ -8,5 +8,6 @@ public class ParallelPlayersClient implements ClientModInitializer {
     @Override
     public void onInitializeClient() {
         ClientConfig.reload();
+        ClientCharacterSync.register();
     }
 }

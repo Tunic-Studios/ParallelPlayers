@@ -19,19 +19,19 @@ public final class ActiveCharacter {
     private static final Logger LOGGER = LoggerFactory.getLogger("parallel");
 
     private final Path file;
-    private final CharacterStore store;
+    private final CharacterStorage storage;
     private volatile UUID active;
 
-    public ActiveCharacter(Path file, CharacterStore store) {
+    public ActiveCharacter(Path file, CharacterStorage storage) {
         this.file = file;
-        this.store = store;
+        this.storage = storage;
         this.active = load();
     }
 
     /** The selected character, or empty if none is selected or it no longer exists. */
     public Optional<UUID> get() {
         UUID id = active;
-        if (id != null && store.get(id).isPresent()) {
+        if (id != null && storage.get(id).isPresent()) {
             return Optional.of(id);
         }
         return Optional.empty();

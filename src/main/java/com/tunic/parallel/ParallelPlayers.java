@@ -2,8 +2,11 @@ package com.tunic.parallel;
 
 import com.tunic.parallel.character.ActiveCharacter;
 import com.tunic.parallel.character.CharacterRules;
-import com.tunic.parallel.character.CharacterStore;
+import com.tunic.parallel.character.CharacterStorage;
+import com.tunic.parallel.character.CharacterSwap;
 import com.tunic.parallel.config.ServerConfig;
+import com.tunic.parallel.network.CharacterPayloads;
+import com.tunic.parallel.network.CharacterSync;
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
@@ -19,15 +22,15 @@ public class ParallelPlayers implements ModInitializer {
     private static final String FOLDER = "characters";
     private static final String ACTIVE_FILE = "active_character.txt";
 
-    private static CharacterStore characterStore;
+    private static CharacterStorage characterStorage;
     private static ActiveCharacter activeCharacter;
 
-    /** The global character store, shared by every world. */
-    public static CharacterStore characters() {
-        if (characterStore == null) {
-            characterStore = new CharacterStore(characterDir());
+    /** The global character storage, shared by every world. */
+    public static CharacterStorage characters() {
+        if (characterStorage == null) {
+            characterStorage = new CharacterStorage(characterDir());
         }
-        return characterStore;
+        return characterStorage;
     }
 
     /** The character the local player is playing as. */
@@ -47,6 +50,9 @@ public class ParallelPlayers implements ModInitializer {
         ServerConfig.reload();
         // Read again for every world or server start, so edits to the file apply without restarting the game.
         ServerLifecycleEvents.SERVER_STARTING.register(server -> ServerConfig.reload());
+        ServerLifecycleEvents.SERVER_STOPPED.register(server -> CharacterSwap.onServerStopped());
+        CharacterPayloads.register();
+        CharacterSync.register();
         ServerPlayConnectionEvents.JOIN.register((handler, sender, server) ->
                 CharacterRules.onJoin(server, handler.getPlayer()).ifPresent(refusal -> handler.disconnect(refusal.message())));
     }
