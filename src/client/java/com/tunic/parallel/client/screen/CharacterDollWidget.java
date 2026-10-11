@@ -2,6 +2,7 @@ package com.tunic.parallel.client.screen;
 
 import com.tunic.parallel.character.CharacterLoadout;
 import com.tunic.parallel.client.config.ClientConfig;
+import com.tunic.parallel.client.doll.DollPictureRenderer;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.ComponentPath;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
@@ -189,7 +190,7 @@ public class CharacterDollWidget extends AbstractWidget {
         Quaternionf tilt = new Quaternionf().rotateX(pitch * 20.0F * Mth.DEG_TO_RAD);
         Quaternionf rotation = new Quaternionf().rotateZ((float) Math.PI).mul(tilt);
         Vector3f translation = new Vector3f(0.0F, state.boundingBoxHeight / 2.0F + 0.0625F, 0.0F);
-        graphics.entity(state, scale, translation, rotation, tilt, this.getX(), this.getY(), this.getRight(), this.getBottom());
+        DollPictureRenderer.extract(graphics, state, scale, translation, rotation, tilt, this.getX(), this.getY(), this.getRight(), this.getBottom());
     }
 
     @Override

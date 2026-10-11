@@ -6,6 +6,7 @@
   "client": [
     "ClientCommonPacketListenerImplAccessor",
     "CreateWorldScreenMixin",
+    "EntityRenderDispatcherMixin",
     "MinecraftMixin",
     "PlayerInfoMixin",
     "TitleScreenMixin",

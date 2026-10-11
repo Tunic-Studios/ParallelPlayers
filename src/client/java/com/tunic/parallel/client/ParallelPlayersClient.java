@@ -1,7 +1,9 @@
 package com.tunic.parallel.client;
 
 import com.tunic.parallel.client.config.ClientConfig;
+import com.tunic.parallel.client.doll.DollPictureRenderer;
 import net.fabricmc.api.ClientModInitializer;
+import net.fabricmc.fabric.api.client.rendering.v1.PictureInPictureRendererRegistry;
 
 public class ParallelPlayersClient implements ClientModInitializer {
 
@@ -9,5 +11,6 @@ public class ParallelPlayersClient implements ClientModInitializer {
     public void onInitializeClient() {
         ClientConfig.reload();
         ClientCharacterSync.register();
+        PictureInPictureRendererRegistry.register(context -> new DollPictureRenderer());
     }
 }
