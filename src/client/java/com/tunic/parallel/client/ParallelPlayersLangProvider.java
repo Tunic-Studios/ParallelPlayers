@@ -20,7 +20,6 @@ public class ParallelPlayersLangProvider extends FabricLanguageProvider {
         builder.add("parallel.characters.title", "Characters");
         builder.add("parallel.characters.button", "Manage your characters");
         builder.add("parallel.characters.select", "Select");
-        builder.add("parallel.characters.deselect", "Deselect");
         builder.add("parallel.characters.new", "New Character");
         builder.add("parallel.characters.rename", "Rename");
         builder.add("parallel.characters.delete", "Delete");
@@ -31,7 +30,8 @@ public class ParallelPlayersLangProvider extends FabricLanguageProvider {
         builder.add("parallel.characters.playtime.short", "Less than a minute");
         builder.add("parallel.characters.empty", "No characters yet. Create one to get started.");
         builder.add("parallel.characters.playing_as", "Playing as %s");
-        builder.add("parallel.characters.vanilla_hint", "No character selected: worlds use their own player data.");
+        builder.add("parallel.characters.account", "Account");
+        builder.add("parallel.characters.account.hint", "Each world uses your default account");
 
         // Delete confirmation
         builder.add("parallel.characters.delete.title", "Delete this character?");
@@ -66,7 +66,7 @@ public class ParallelPlayersLangProvider extends FabricLanguageProvider {
         builder.add("parallel.mode.blocked.title", "Wrong character for this world");
         builder.add("parallel.mode.blocked.message", "%s is a %s character, but this is a %s world.");
         builder.add("parallel.mode.blocked.suggest", "Characters that can join: %s");
-        builder.add("parallel.mode.blocked.none", "You have no %s characters yet. Create one in the Characters menu, or deselect your character.");
+        builder.add("parallel.mode.blocked.none", "You have no %s characters yet. Create one in the Characters menu, or switch to your account.");
 
         // Character select when a world needs a certain kind of character
         builder.add("parallel.characters.choose_for_world", "Choose a %s character to enter this world");

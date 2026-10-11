@@ -15,6 +15,8 @@ import org.slf4j.LoggerFactory;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Optional;
 import java.util.Set;
@@ -27,12 +29,18 @@ import java.util.UUID;
  * dimension, respawn point, ...) is remembered per character <em>per world</em> inside the character's
  * data under {@link #LOCATIONS_KEY}, so a character that visits a new world starts at that world's
  * spawn, and returns to where it left off in worlds it has been to before.
+ *
+ * <p>Vanilla still saves whoever is playing into the world's own player data, so while a character plays
+ * in a world the account's data there is put aside in {@link #ACCOUNT_FILE} and given back when the
+ * account plays that world again.
  */
 public final class CharacterSwap {
 
     private static final Logger LOGGER = LoggerFactory.getLogger("parallel");
 
     static final String LOCATIONS_KEY = "parallel_locations";
+    /** The account's own data in a world, kept under the world folder while a character plays there. */
+    private static final String ACCOUNT_FILE = "account.dat";
 
     /** Keys of the player's NBT that describe where the player is in a particular world. */
     static final Set<String> LOCATION_KEYS = Set.of(
@@ -51,13 +59,17 @@ public final class CharacterSwap {
      * @return the data the player should be loaded from
      */
     public static Optional<CompoundTag> onLoad(MinecraftServer server, NameAndId player, @Nullable CompoundTag worldData) {
-        Optional<UUID> active = ParallelPlayers.activeCharacter().get();
-        if (active.isEmpty() || !server.isSingleplayerOwner(player)) {
+        if (!server.isSingleplayerOwner(player)) {
             return Optional.ofNullable(worldData);
+        }
+        Optional<UUID> active = ParallelPlayers.activeCharacter().get();
+        if (active.isEmpty()) {
+            return accountData(server, worldData);
         }
         UUID id = active.get();
         CharacterStore store = ParallelPlayers.characters();
         try {
+            setAccountAside(server, worldData);
             store.touch(id);
             // One backup per time a world is entered, not per autosave, so older ones are not rotated out.
             store.backupPlayerData(id);
@@ -121,8 +133,17 @@ public final class CharacterSwap {
 
     /** Called after vanilla saved the player into the world; mirrors the data into the character. */
     public static void onSave(MinecraftServer server, ServerPlayer player) {
+        if (!server.isSingleplayerOwner(player.nameAndId())) {
+            return;
+        }
         Optional<UUID> active = ParallelPlayers.activeCharacter().get();
-        if (active.isEmpty() || !server.isSingleplayerOwner(player.nameAndId())) {
+        if (active.isEmpty()) {
+            // The account's data is back in the world's own save, so the copy put aside is no longer needed.
+            try {
+                Files.deleteIfExists(accountFile(server));
+            } catch (IOException e) {
+                LOGGER.warn("Could not remove {}", accountFile(server), e);
+            }
             return;
         }
         UUID id = active.get();
@@ -165,6 +186,44 @@ public final class CharacterSwap {
         } catch (Exception e) {
             LOGGER.error("Failed to save character {}", id, e);
         }
+    }
+
+    /**
+     * Puts the account's data in this world aside before a character is loaded over it. Only the first time:
+     * once a character has played here, the world's own data is that character's, not the account's.
+     *
+     * @param worldData the world's own player data, or {@code null} if the account has never played here
+     */
+    private static void setAccountAside(MinecraftServer server, @Nullable CompoundTag worldData) throws IOException {
+        Path file = accountFile(server);
+        if (Files.exists(file)) {
+            return;
+        }
+        Files.createDirectories(file.getParent());
+        // An empty tag records that the account has no data here, so it starts fresh rather than as the character.
+        NbtIo.writeCompressed(worldData == null ? new CompoundTag() : NbtUtils.addCurrentDataVersion(worldData.copy()), file);
+    }
+
+    /** The account's data in this world: what was put aside for it if a character has played here since. */
+    private static Optional<CompoundTag> accountData(MinecraftServer server, @Nullable CompoundTag worldData) {
+        Path file = accountFile(server);
+        if (!Files.isRegularFile(file)) {
+            return Optional.ofNullable(worldData);
+        }
+        try {
+            CompoundTag tag = NbtIo.readCompressed(file, NbtAccounter.unlimitedHeap());
+            if (tag.isEmpty()) {
+                return Optional.empty();
+            }
+            return Optional.of(DataFixTypes.PLAYER.updateToCurrentVersion(server.getFixerUpper(), tag, NbtUtils.getDataVersion(tag)));
+        } catch (Exception e) {
+            LOGGER.error("Failed to read the account's data from {}, using the world's own player data", file, e);
+            return Optional.ofNullable(worldData);
+        }
+    }
+
+    private static Path accountFile(MinecraftServer server) {
+        return server.getWorldPath(LevelResource.ROOT).resolve(ParallelPlayers.MOD_ID).resolve(ACCOUNT_FILE);
     }
 
     private static void copyLocation(CompoundTag from, CompoundTag to) {

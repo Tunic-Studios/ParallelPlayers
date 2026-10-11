@@ -29,7 +29,9 @@ import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
 
 import java.text.DateFormat;
+import java.util.ArrayList;
 import java.util.Date;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.function.Supplier;
@@ -56,7 +58,11 @@ public class CharactersScreen extends Screen {
     private Button renameButton;
     private Button deleteButton;
     private Button skinButton;
+    /** The highlighted row: a character's id, or {@link #ACCOUNT_ID} for the account row. */
     private @Nullable UUID selectedId;
+
+    /** Stands for the account row, which plays without a character; no character has this id. */
+    private static final UUID ACCOUNT_ID = new UUID(0L, 0L);
 
     /**
      * A world that is about to be opened and needs a character that can enter it. While this is set, the
@@ -102,15 +108,15 @@ public class CharactersScreen extends Screen {
         this.renameButton = row.addChild(Button.builder(Component.translatable("parallel.characters.rename"), button -> this.renameCharacter()).width(98).build());
         row.addChild(Button.builder(Component.translatable("parallel.characters.new"), button -> this.createCharacter()).width(98).build());
         this.skinButton = row.addChild(Button.builder(Component.translatable("parallel.characters.skin"), button -> this.editSkin()).width(98).build());
-        this.selectButton = row.addChild(Button.builder(Component.translatable("parallel.characters.select"), button -> this.toggleActive()).width(98).build());
+        this.selectButton = row.addChild(Button.builder(Component.translatable("parallel.characters.select"), button -> this.selectHighlighted()).width(98).build());
         this.deleteButton = row.addChild(Button.builder(Component.translatable("parallel.characters.delete"), button -> this.deleteCharacter()).width(98).build());
         row.addChild(Button.builder(CommonComponents.GUI_BACK, button -> this.onClose()).width(98).build());
 
         this.layout.visitWidgets(this::addRenderableWidget);
         this.repositionElements();
         if (this.selectedId == null) {
-            // Open with the active character highlighted, so its doll is shown straight away.
-            this.selectedId = ParallelPlayers.activeCharacter().get().orElse(null);
+            // Open with the active row highlighted, so its doll is shown straight away.
+            this.selectedId = ParallelPlayers.activeCharacter().get().orElse(ACCOUNT_ID);
         }
         this.refresh();
     }
@@ -130,7 +136,7 @@ public class CharactersScreen extends Screen {
         CharacterEntry selected = this.list.getSelected();
         if (selected != null) {
             int centerX = this.doll.getX() + this.doll.getWidth() / 2;
-            graphics.centeredText(this.font, selected.meta.name(), centerX, this.doll.getBottom() + 4, 0xFFFFFFFF);
+            graphics.centeredText(this.font, selected.name(), centerX, this.doll.getBottom() + 4, 0xFFFFFFFF);
         }
     }
 
@@ -146,12 +152,15 @@ public class CharactersScreen extends Screen {
     /** Rebuilds the list from disk, keeping the previous selection where possible. */
     private void refresh() {
         Optional<UUID> active = ParallelPlayers.activeCharacter().get();
-        this.list.replaceEntries(ParallelPlayers.characters().list().stream()
-                .map(meta -> new CharacterEntry(meta, active.filter(meta.id()::equals).isPresent()))
-                .toList());
+        List<CharacterEntry> entries = new ArrayList<>();
+        // The account always comes first, and is active whenever no character is.
+        entries.add(new CharacterEntry(null, active.isEmpty()));
+        ParallelPlayers.characters().list().forEach(meta ->
+                entries.add(new CharacterEntry(meta, active.filter(meta.id()::equals).isPresent())));
+        this.list.replaceEntries(entries);
         if (this.selectedId != null) {
             this.list.children().stream()
-                    .filter(entry -> entry.meta.id().equals(this.selectedId))
+                    .filter(entry -> entry.id().equals(this.selectedId))
                     .findFirst()
                     .ifPresent(this.list::setSelected);
         }
@@ -166,65 +175,65 @@ public class CharactersScreen extends Screen {
             return;
         }
         Optional<CharacterMeta> active = ParallelPlayers.activeCharacter().get().flatMap(id -> ParallelPlayers.characters().get(id));
-        this.statusLine.setMessage(active
-                .map(meta -> Component.translatable("parallel.characters.playing_as", meta.name()))
-                .orElseGet(() -> Component.translatable("parallel.characters.vanilla_hint"))
-                .withStyle(ChatFormatting.GRAY));
+        String name = active.map(CharacterMeta::name).orElseGet(this::accountName);
+        this.statusLine.setMessage(Component.translatable("parallel.characters.playing_as", name).withStyle(ChatFormatting.GRAY));
         this.layout.arrangeElements();
     }
 
     private void updateButtons() {
         this.updateStatusLine();
         CharacterEntry selected = this.list.getSelected();
-        UUID id = selected == null ? null : selected.meta.id();
+        UUID id = selected == null ? null : selected.id();
         this.selectedId = id;
         this.doll.visible = id != null;
-        if (id != null && !id.equals(this.dollCharacter)) {
-            this.doll.setLoadout(CharacterLoadout.read(ParallelPlayers.characters(), id));
+        if (selected != null && !id.equals(this.dollCharacter)) {
+            // The account's inventory lives in each world, so there is nothing of it to dress the doll in.
+            this.doll.setLoadout(selected.meta == null ? CharacterLoadout.EMPTY : CharacterLoadout.read(ParallelPlayers.characters(), id));
         }
         this.dollCharacter = id;
-        this.selectButton.active = selected != null;
-        this.renameButton.active = selected != null;
-        this.deleteButton.active = selected != null;
-        this.skinButton.active = selected != null;
-        this.doll.setSkin(selected == null ? this.accountSkin : () -> CharacterSkins.resolve(selected.meta, this.accountSkin.get()));
-        this.selectButton.setMessage(Component.translatable(
-                selected != null && selected.active ? "parallel.characters.deselect" : "parallel.characters.select"));
+        boolean character = selected != null && selected.meta != null;
+        // Selecting is how you switch rows, so it is pointless on the row already in use, except when
+        // picking for a world, where it also carries on into the world.
+        this.selectButton.active = selected != null && (this.requirement != null || !selected.active);
+        this.renameButton.active = character;
+        this.deleteButton.active = character;
+        this.skinButton.active = character;
+        this.doll.setSkin(!character ? this.accountSkin : () -> CharacterSkins.resolve(selected.meta, this.accountSkin.get()));
     }
 
-    private void toggleActive() {
+    private void selectHighlighted() {
         CharacterEntry selected = this.list.getSelected();
-        if (selected == null) {
-            return;
+        if (selected != null) {
+            this.activate(selected);
         }
-        if (this.requirement != null) {
-            this.choose(selected.meta.id());
-        } else if (selected.active) {
-            ParallelPlayers.activeCharacter().clear();
-        } else {
-            ParallelPlayers.activeCharacter().set(selected.meta.id());
-        }
-        this.refresh();
     }
 
-    /** Makes the entry's character the active one; unlike {@link #toggleActive} it never deselects. */
+    /** Makes the entry the active one: its character, or none at all for the account row. */
     private void activate(CharacterEntry entry) {
-        this.minecraft.getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
         if (!entry.enabled) {
             return;
         }
-        this.selectedId = entry.meta.id();
+        this.selectedId = entry.id();
         if (this.requirement != null) {
-            this.choose(entry.meta.id());
+            this.choose(entry.id());
         } else if (!entry.active) {
-            ParallelPlayers.activeCharacter().set(entry.meta.id());
+            makeActive(entry.id());
             this.refresh();
         }
     }
 
-    /** Makes the character active and carries on into the world this screen was opened for. */
+    /** Makes the character active, or plays without one for {@link #ACCOUNT_ID}. */
+    private static void makeActive(UUID id) {
+        if (ACCOUNT_ID.equals(id)) {
+            ParallelPlayers.activeCharacter().clear();
+        } else {
+            ParallelPlayers.activeCharacter().set(id);
+        }
+    }
+
+    /** Makes the row active and carries on into the world this screen was opened for. */
     private void choose(UUID id) {
-        ParallelPlayers.activeCharacter().set(id);
+        makeActive(id);
         if (this.requirement != null) {
             this.requirement.onChosen().run();
         }
@@ -246,7 +255,7 @@ public class CharactersScreen extends Screen {
                     }
                     this.selectedId = created.id();
                     // Make the first character active right away so it is used without an extra step.
-                    if (ParallelPlayers.activeCharacter().get().isEmpty()) {
+                    if (ParallelPlayers.characters().list().size() == 1) {
                         ParallelPlayers.activeCharacter().set(created.id());
                     }
                     this.refresh();
@@ -255,7 +264,7 @@ public class CharactersScreen extends Screen {
 
     private void editSkin() {
         CharacterEntry selected = this.list.getSelected();
-        if (selected == null) {
+        if (selected == null || selected.meta == null) {
             return;
         }
         CharacterMeta meta = selected.meta;
@@ -268,7 +277,7 @@ public class CharactersScreen extends Screen {
 
     private void renameCharacter() {
         CharacterEntry selected = this.list.getSelected();
-        if (selected == null) {
+        if (selected == null || selected.meta == null) {
             return;
         }
         UUID id = selected.meta.id();
@@ -280,7 +289,7 @@ public class CharactersScreen extends Screen {
 
     private void deleteCharacter() {
         CharacterEntry selected = this.list.getSelected();
-        if (selected == null) {
+        if (selected == null || selected.meta == null) {
             return;
         }
         UUID id = selected.meta.id();
@@ -300,6 +309,10 @@ public class CharactersScreen extends Screen {
                 Component.translatable("parallel.characters.delete.message", selected.meta.name()),
                 Component.translatable("parallel.characters.delete"),
                 CommonComponents.GUI_CANCEL));
+    }
+
+    private String accountName() {
+        return this.minecraft.getUser().getName();
     }
 
     /** "2h 15m", "40m", or "less than a minute" for a character that has barely been played. */
@@ -338,7 +351,8 @@ public class CharactersScreen extends Screen {
         @Override
         public void extractWidgetRenderState(@NonNull GuiGraphicsExtractor graphics, int mouseX, int mouseY, float a) {
             super.extractWidgetRenderState(graphics, mouseX, mouseY, a);
-            if (this.children().isEmpty()) {
+            // The account row is always there; the hint is for when it is the only one.
+            if (this.children().size() <= 1) {
                 graphics.centeredText(CharactersScreen.this.font, Component.translatable("parallel.characters.empty"),
                         this.rowsLeft + this.getRowWidth() / 2, this.getY() + this.getHeight() / 2 - 4, SUBTEXT_COLOR);
             }
@@ -347,29 +361,44 @@ public class CharactersScreen extends Screen {
 
     private class CharacterEntry extends ObjectSelectionList.Entry<CharacterEntry> {
 
-        final CharacterMeta meta;
+        /** The character, or {@code null} for the account row. */
+        final @Nullable CharacterMeta meta;
         final boolean active;
         /** False for a character that cannot enter the world being chosen for; it is greyed out. */
         final boolean enabled;
         final long playTimeTicks;
 
-        CharacterEntry(CharacterMeta meta, boolean active) {
+        CharacterEntry(@Nullable CharacterMeta meta, boolean active) {
             this.meta = meta;
             this.active = active;
-            this.playTimeTicks = ParallelPlayers.characters().playTimeTicks(meta.id());
+            this.playTimeTicks = meta == null ? 0L : ParallelPlayers.characters().playTimeTicks(meta.id());
             WorldRequirement requirement = CharactersScreen.this.requirement;
-            CharacterMode mode = meta.modeChoice();
+            // The account has no mode: without a character every world uses its own player data.
+            CharacterMode mode = meta == null ? null : meta.modeChoice();
             this.enabled = requirement == null || mode == null || mode.canJoin(requirement.world());
         }
 
         @Override
         public @NonNull Component getNarration() {
-            return Component.literal(this.meta.name());
+            return Component.literal(this.name());
+        }
+
+        private void playClick() {
+            CharactersScreen.this.minecraft.getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK, 1.0F));
+        }
+
+        UUID id() {
+            return this.meta == null ? ACCOUNT_ID : this.meta.id();
+        }
+
+        String name() {
+            return this.meta == null ? CharactersScreen.this.accountName() : this.meta.name();
         }
 
         @Override
         public boolean mouseClicked(@NonNull MouseButtonEvent event, boolean doubleClick) {
             if (doubleClick) {
+                this.playClick();
                 CharactersScreen.this.activate(this);
                 return true;
             }
@@ -379,6 +408,7 @@ public class CharactersScreen extends Screen {
         @Override
         public boolean keyPressed(KeyEvent event) {
             if (event.isSelection()) {
+                this.playClick();
                 CharactersScreen.this.activate(this);
                 return true;
             }
@@ -390,7 +420,7 @@ public class CharactersScreen extends Screen {
          * character that has none yet.
          */
         private void extractModeIcon(GuiGraphicsExtractor graphics, int mouseX, int mouseY) {
-            CharacterMode mode = this.meta.modeChoice();
+            CharacterMode mode = this.meta == null ? null : this.meta.modeChoice();
             if (mode == null) {
                 return;
             }
@@ -408,10 +438,15 @@ public class CharactersScreen extends Screen {
         public void extractContent(GuiGraphicsExtractor graphics, int mouseX, int mouseY, boolean hovered, float a) {
             int x = this.getContentX() + 4;
             int y = this.getContentY() + 2;
-            graphics.text(CharactersScreen.this.font, this.meta.name(), x, y, this.enabled ? 0xFFFFFFFF : DISABLED_COLOR);
+            graphics.text(CharactersScreen.this.font, this.name(), x, y, this.enabled ? 0xFFFFFFFF : DISABLED_COLOR);
             if (this.active) {
                 Component label = Component.translatable("parallel.characters.active");
-                graphics.text(CharactersScreen.this.font, label, x + CharactersScreen.this.font.width(this.meta.name()) + 6, y, ACTIVE_COLOR);
+                graphics.text(CharactersScreen.this.font, label, x + CharactersScreen.this.font.width(this.name()) + 6, y, ACTIVE_COLOR);
+            }
+            if (this.meta == null) {
+                graphics.text(CharactersScreen.this.font, Component.translatable("parallel.characters.account"), x, y + 12, SUBTEXT_COLOR);
+                graphics.text(CharactersScreen.this.font, Component.translatable("parallel.characters.account.hint"), x, y + 22, PLAYTIME_COLOR);
+                return;
             }
             this.extractModeIcon(graphics, mouseX, mouseY);
             int detailColor = this.enabled ? SUBTEXT_COLOR : DISABLED_COLOR;
