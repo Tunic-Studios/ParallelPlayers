@@ -4,6 +4,7 @@ import com.tunic.parallel.ParallelPlayers;
 import com.tunic.parallel.character.CharacterLoadout;
 import com.tunic.parallel.character.CharacterMeta;
 import com.tunic.parallel.character.CharacterMode;
+import com.tunic.parallel.character.CharacterStore;
 import com.tunic.parallel.client.CharacterSkins;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
@@ -28,6 +29,9 @@ import net.minecraft.world.entity.player.PlayerSkin;
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.text.DateFormat;
 import java.util.ArrayList;
 import java.util.Date;
@@ -35,6 +39,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.function.Supplier;
+import java.util.stream.Stream;
 
 /** Main-menu screen for creating, selecting, renaming and deleting characters. */
 public class CharactersScreen extends Screen {
@@ -186,9 +191,9 @@ public class CharactersScreen extends Screen {
         UUID id = selected == null ? null : selected.id();
         this.selectedId = id;
         this.doll.visible = id != null;
-        if (selected != null && !id.equals(this.dollCharacter)) {
+        if (selected != null && !selected.id().equals(this.dollCharacter)) {
             // The account's inventory lives in each world, so there is nothing of it to dress the doll in.
-            this.doll.setLoadout(selected.meta == null ? CharacterLoadout.EMPTY : CharacterLoadout.read(ParallelPlayers.characters(), id));
+            this.doll.setLoadout(selected.meta == null ? CharacterLoadout.EMPTY : CharacterLoadout.read(ParallelPlayers.characters(), selected.id()));
         }
         this.dollCharacter = id;
         boolean character = selected != null && selected.meta != null;
@@ -315,6 +320,20 @@ public class CharactersScreen extends Screen {
         return this.minecraft.getUser().getName();
     }
 
+    /**
+     * Time played as the account, added up over every world: without a character each world keeps the
+     * account's statistics itself, in {@code stats/<uuid>.json}. Characters' statistics are kept elsewhere,
+     * so they are not counted.
+     */
+    private long accountPlayTimeTicks() {
+        String statsName = this.minecraft.getUser().getProfileId() + ".json";
+        try (Stream<Path> worlds = Files.list(this.minecraft.getLevelSource().getBaseDir())) {
+            return worlds.mapToLong(world -> CharacterStore.playTimeTicks(world.resolve("stats").resolve(statsName))).sum();
+        } catch (IOException e) {
+            return 0L;
+        }
+    }
+
     /** "2h 15m", "40m", or "less than a minute" for a character that has barely been played. */
     private static String formatPlayTime(long ticks) {
         long minutes = ticks / (20L * 60L);
@@ -371,7 +390,7 @@ public class CharactersScreen extends Screen {
         CharacterEntry(@Nullable CharacterMeta meta, boolean active) {
             this.meta = meta;
             this.active = active;
-            this.playTimeTicks = meta == null ? 0L : ParallelPlayers.characters().playTimeTicks(meta.id());
+            this.playTimeTicks = meta == null ? CharactersScreen.this.accountPlayTimeTicks() : ParallelPlayers.characters().playTimeTicks(meta.id());
             WorldRequirement requirement = CharactersScreen.this.requirement;
             // The account has no mode: without a character every world uses its own player data.
             CharacterMode mode = meta == null ? null : meta.modeChoice();
@@ -445,7 +464,7 @@ public class CharactersScreen extends Screen {
             }
             if (this.meta == null) {
                 graphics.text(CharactersScreen.this.font, Component.translatable("parallel.characters.account"), x, y + 12, SUBTEXT_COLOR);
-                graphics.text(CharactersScreen.this.font, Component.translatable("parallel.characters.account.hint"), x, y + 22, PLAYTIME_COLOR);
+                this.extractPlayTime(graphics, x, y + 22);
                 return;
             }
             this.extractModeIcon(graphics, mouseX, mouseY);
@@ -459,8 +478,12 @@ public class CharactersScreen extends Screen {
                 String played = DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.SHORT).format(new Date(this.meta.lastPlayedAt()));
                 graphics.text(CharactersScreen.this.font, Component.translatable("parallel.characters.last_played", played), x, y + 12, detailColor);
             }
+            this.extractPlayTime(graphics, x, y + 22);
+        }
+
+        private void extractPlayTime(GuiGraphicsExtractor graphics, int x, int y) {
             graphics.text(CharactersScreen.this.font,
-                    Component.translatable("parallel.characters.playtime", formatPlayTime(this.playTimeTicks)), x, y + 22, PLAYTIME_COLOR);
+                    Component.translatable("parallel.characters.playtime", formatPlayTime(this.playTimeTicks)), x, y, PLAYTIME_COLOR);
         }
     }
 }

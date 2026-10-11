@@ -1,6 +1,5 @@
 {
   "parallel.characters.account": "Account",
-  "parallel.characters.account.hint": "Each world keeps its own player data",
   "parallel.characters.active": "Active",
   "parallel.characters.button": "Manage your characters",
   "parallel.characters.cannot_join": "Cannot join %s worlds",

@@ -255,7 +255,15 @@ public final class CharacterStore {
      * @return 0 if the character has no statistics yet or they cannot be read
      */
     public long playTimeTicks(UUID id) {
-        Path file = statsFile(id);
+        return playTimeTicks(statsFile(id));
+    }
+
+    /**
+     * The play-time statistic in a vanilla stats file, in ticks.
+     *
+     * @return 0 if the file does not exist or cannot be read
+     */
+    public static long playTimeTicks(Path file) {
         if (!Files.isRegularFile(file)) {
             return 0L;
         }

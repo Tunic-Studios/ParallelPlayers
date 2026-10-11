@@ -31,7 +31,6 @@ public class ParallelPlayersLangProvider extends FabricLanguageProvider {
         builder.add("parallel.characters.empty", "No characters yet. Create one to get started.");
         builder.add("parallel.characters.playing_as", "Playing as %s");
         builder.add("parallel.characters.account", "Account");
-        builder.add("parallel.characters.account.hint", "Each world uses your default account");
 
         // Delete confirmation
         builder.add("parallel.characters.delete.title", "Delete this character?");
