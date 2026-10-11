@@ -1,6 +1,8 @@
 package com.tunic.parallel.client.screen;
 
 import com.tunic.parallel.character.CharacterMode;
+import com.tunic.parallel.character.CharacterNames;
+import com.tunic.parallel.client.MojangNameCheck;
 import net.minecraft.client.gui.components.*;
 import net.minecraft.client.gui.layouts.LinearLayout;
 import net.minecraft.client.gui.screens.Screen;
@@ -10,13 +12,19 @@ import net.minecraft.network.chat.Component;
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
 
+import java.util.Optional;
+
 /**
  * Asks for a character name, used both when creating and renaming a character. When creating, it also
  * asks for the character's mode, which cannot be changed afterwards.
+ *
+ * <p>The name has to follow {@link CharacterNames}' rules, and is checked with Mojang (see
+ * {@link MojangNameCheck}) before it is accepted.
  */
 public class CharacterNameScreen extends Screen {
 
-    private static final int MAX_LENGTH = 32;
+    private static final int ERROR_COLOR = 0xFFFF5555;
+    private static final int HINT_COLOR = 0xFFA0A0A0;
 
     private final Screen parent;
     private final String initialName;
@@ -26,7 +34,10 @@ public class CharacterNameScreen extends Screen {
     private CharacterMode mode = CharacterMode.SURVIVAL;
     private final LinearLayout layout = LinearLayout.vertical().spacing(8);
     private EditBox nameBox;
+    private StringWidget status;
     private Button confirmButton;
+    /** Set while Mojang is being asked about the name. */
+    private boolean checking;
 
     /** Called with the confirmed name and, if the screen asked for one, the chosen mode (else {@code null}). */
     @FunctionalInterface
@@ -55,9 +66,19 @@ public class CharacterNameScreen extends Screen {
         this.layout.addChild(new StringWidget(this.title, this.font));
 
         this.nameBox = this.layout.addChild(new EditBox(this.font, 200, 20, Component.translatable("parallel.characters.name")));
-        this.nameBox.setMaxLength(MAX_LENGTH);
+        this.nameBox.setMaxLength(CharacterNames.MAX_LENGTH);
         this.nameBox.setValue(this.initialName);
-        this.nameBox.setResponder(value -> this.confirmButton.active = !value.isBlank());
+        this.nameBox.setResponder(value -> {
+            // Anything a name may not have is dropped as it is typed or pasted.
+            String allowed = CharacterNames.withoutDisallowedCharacters(value);
+            if (!allowed.equals(value)) {
+                this.nameBox.setValue(allowed);
+                return;
+            }
+            this.updateStatus();
+        });
+        // As wide as its text, at most as wide as the box, so the layout centres it under the box.
+        this.status = this.layout.addChild(new StringWidget(200, 9, Component.empty(), this.font).setMaxWidth(200));
 
         if (this.askMode) {
             this.layout.addChild(CycleButton.builder(value -> Component.translatable(value.translationKey()), this.mode)
@@ -71,9 +92,9 @@ public class CharacterNameScreen extends Screen {
         buttons.defaultCellSetting().paddingTop(8);
         buttons.addChild(Button.builder(CommonComponents.GUI_CANCEL, button -> this.onClose()).width(98).build());
         this.confirmButton = buttons.addChild(Button.builder(this.confirmLabel, button -> this.confirm()).width(98).build());
-        this.confirmButton.active = !this.nameBox.getValue().isBlank();
 
         this.layout.visitWidgets(this::addRenderableWidget);
+        this.updateStatus();
         this.repositionElements();
     }
 
@@ -100,13 +121,55 @@ public class CharacterNameScreen extends Screen {
         this.setInitialFocus(this.nameBox);
     }
 
-    private void confirm() {
-        String name = this.nameBox.getValue().strip();
-        if (!name.isEmpty()) {
-            // Return first: the callback may open another screen, which must not be replaced afterwards.
-            this.minecraft.gui.setScreen(this.parent);
-            this.onConfirm.accept(name, this.askMode ? this.mode : null);
+    /** Says what is wrong with the name, if anything, and only lets it be confirmed when nothing is. */
+    private void updateStatus() {
+        if (this.checking) {
+            return;
         }
+        String name = this.nameBox.getValue();
+        Optional<CharacterNames.Problem> problem = name.isEmpty() ? Optional.empty() : CharacterNames.problem(name);
+        this.showStatus(problem.map(p -> Component.translatable(p.translationKey(), CharacterNames.MIN_LENGTH, CharacterNames.MAX_LENGTH))
+                .orElse(Component.empty()), ERROR_COLOR);
+        this.confirmButton.active = !name.isEmpty() && problem.isEmpty();
+    }
+
+    private void showStatus(Component message, int color) {
+        this.status.setMessage(message.copy().withColor(color));
+        this.repositionElements();
+    }
+
+    /** Asks Mojang about the name first; an unchanged name was accepted before and is not asked about again. */
+    private void confirm() {
+        String name = this.nameBox.getValue();
+        if (CharacterNames.problem(name).isPresent()) {
+            return;
+        }
+        if (name.equals(this.initialName)) {
+            this.accept(name);
+            return;
+        }
+        this.checking = true;
+        this.confirmButton.active = false;
+        this.showStatus(Component.translatable("parallel.characters.name.checking"), HINT_COLOR);
+        MojangNameCheck.check(name).thenAcceptAsync(result -> {
+            this.checking = false;
+            if (this.minecraft.gui.screen() != this || !name.equals(this.nameBox.getValue())) {
+                // Closed, or the name was changed while Mojang was asked: that one has to be confirmed anew.
+                this.updateStatus();
+                return;
+            }
+            if (result == MojangNameCheck.Result.NOT_ALLOWED) {
+                this.showStatus(Component.translatable("parallel.characters.name.not_allowed"), ERROR_COLOR);
+                return;
+            }
+            this.accept(name);
+        }, this.minecraft);
+    }
+
+    private void accept(String name) {
+        // Return first: the callback may open another screen, which must not be replaced afterwards.
+        this.minecraft.gui.setScreen(this.parent);
+        this.onConfirm.accept(name, this.askMode ? this.mode : null);
     }
 
     @Override

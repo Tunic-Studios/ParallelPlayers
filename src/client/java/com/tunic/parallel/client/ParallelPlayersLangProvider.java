@@ -40,6 +40,12 @@ public class ParallelPlayersLangProvider extends FabricLanguageProvider {
         builder.add("parallel.characters.name", "Character name");
         builder.add("parallel.characters.name.new", "Create a new Character");
         builder.add("parallel.characters.name.rename", "Rename Character");
+        builder.add("parallel.characters.name.problem.invalid_characters", "Only letters, numbers, _ and spaces");
+        builder.add("parallel.characters.name.problem.spacing", "No spaces at the ends or two in a row");
+        builder.add("parallel.characters.name.problem.too_short", "At least %s characters");
+        builder.add("parallel.characters.name.problem.too_long", "At most %2$s characters");
+        builder.add("parallel.characters.name.checking", "Checking the name...");
+        builder.add("parallel.characters.name.not_allowed", "This name is not allowed");
 
         // Skin screen
         builder.add("parallel.skin.title", "Skin for %s");

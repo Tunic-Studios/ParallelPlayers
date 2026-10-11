@@ -474,11 +474,16 @@ public final class CharacterStorage {
         }
     }
 
-    private static String sanitizeName(String name) {
+    /**
+     * The name without surrounding spaces, if it is a valid character name.
+     *
+     * @throws IllegalArgumentException if it is not; see {@link CharacterNames}
+     */
+    private static String sanitizeName(@Nullable String name) {
         String trimmed = name == null ? "" : name.strip();
-        if (trimmed.isEmpty()) {
-            throw new IllegalArgumentException("Character name must not be empty");
-        }
-        return trimmed.length() > 32 ? trimmed.substring(0, 32) : trimmed;
+        CharacterNames.problem(trimmed).ifPresent(problem -> {
+            throw new IllegalArgumentException("Invalid character name \"" + trimmed + "\": " + problem);
+        });
+        return trimmed;
     }
 }
