@@ -7,6 +7,7 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.level.storage.WorldData;
+import org.jspecify.annotations.Nullable;
 
 import java.util.List;
 import java.util.Optional;
@@ -26,17 +27,17 @@ public final class CharacterRules {
      * active, or the active one has no mode yet and will take the world's)
      */
     public static Optional<Refusal> check(CharacterMode world) {
-        return check(world, ParallelPlayers.activeCharacter().get());
+        return check(world, ParallelPlayers.activeCharacter().get().orElse(null));
     }
 
-    /** {@link #check(CharacterMode)} for a given character; empty means the account, which may go anywhere. */
-    private static Optional<Refusal> check(CharacterMode world, Optional<UUID> active) {
+    /** {@link #check(CharacterMode)} for a given character; {@code null} is the account, which may go anywhere. */
+    private static Optional<Refusal> check(CharacterMode world, @Nullable UUID active) {
         ServerConfig config = ServerConfig.get();
-        if (active.isEmpty() || !config.charactersEnabled || !config.enforceModes) {
+        if (active == null || !config.charactersEnabled || !config.enforceModes) {
             return Optional.empty();
         }
         CharacterStore store = ParallelPlayers.characters();
-        CharacterMeta character = store.get(active.get()).orElse(null);
+        CharacterMeta character = store.get(active).orElse(null);
         if (character == null) {
             return Optional.empty();
         }
@@ -83,7 +84,7 @@ public final class CharacterRules {
         }
         WorldData data = server.getWorldData();
         CharacterMode world = CharacterMode.ofWorld(data.isHardcore(), data.getGameType(), data.isAllowCommands());
-        Optional<Refusal> refusal = check(world, character);
+        Optional<Refusal> refusal = check(world, character.get());
         if (refusal.isPresent() && !ParallelPermissions.bypassesModes(player)) {
             return refusal;
         }

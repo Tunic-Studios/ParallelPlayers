@@ -23,7 +23,7 @@ public final class SkinFileDialog {
         Minecraft minecraft = Minecraft.getInstance();
         // The native callback has to stay alive until SDL has called it, so it is freed from inside.
         AtomicReference<SDL_DialogFileCallback> self = new AtomicReference<>();
-        SDL_DialogFileCallback callback = SDL_DialogFileCallback.create((userdata, fileList, filter) -> {
+        SDL_DialogFileCallback callback = SDL_DialogFileCallback.create((_, fileList, _) -> {
             String picked = null;
             if (fileList != 0L) {
                 // A NULL-terminated array of UTF-8 paths; only the first is wanted.

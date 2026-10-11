@@ -33,8 +33,8 @@ import org.jspecify.annotations.Nullable;
 import java.util.function.Supplier;
 
 /**
- * A character drawn as a full player model: skin, worn armor, held items and cape. Unlike the vanilla
- * skin widget this renders through an avatar render state, which is what the armor, held item and
+ * A character drawn as a full player model: skin, worn armour, held items and cape. Unlike the vanilla
+ * skin widget this renders through an avatar render state, which is what the armour, held item and
  * cape layers read from, and it needs no world.
  */
 public class CharacterDollWidget extends AbstractWidget {
@@ -56,7 +56,7 @@ public class CharacterDollWidget extends AbstractWidget {
     private float rotationY = 30.0F;
     /** What the character wears and holds, before {@link ClientConfig} hides any of it. */
     private CharacterLoadout loadout = CharacterLoadout.EMPTY;
-    /** The armor and item settings the doll was last dressed with, so it is redressed when they change. */
+    /** The armour and item settings the doll was last dressed with, so it is redressed when they change. */
     private boolean dressedWithArmor;
     private boolean dressedWithItems;
     private final long startNanos = System.nanoTime();
@@ -115,15 +115,14 @@ public class CharacterDollWidget extends AbstractWidget {
 
     private @NonNull CharacterLoadout getLoadout() {
         CharacterLoadout full = this.loadout;
-        // Anything worn on the head (skulls, pumpkins, ...) counts as armor here.
-        CharacterLoadout loadout = new CharacterLoadout(
+        // Anything worn on the head (skulls, pumpkins, ...) counts as armour here.
+        return new CharacterLoadout(
                 this.dressedWithArmor ? full.head() : ItemStack.EMPTY,
                 this.dressedWithArmor ? full.chest() : ItemStack.EMPTY,
                 this.dressedWithArmor ? full.legs() : ItemStack.EMPTY,
                 this.dressedWithArmor ? full.feet() : ItemStack.EMPTY,
                 this.dressedWithItems ? full.mainHand() : ItemStack.EMPTY,
                 this.dressedWithItems ? full.offHand() : ItemStack.EMPTY);
-        return loadout;
     }
 
     private void setHand(HumanoidArm arm, ItemStack stack) {
@@ -151,7 +150,7 @@ public class CharacterDollWidget extends AbstractWidget {
     }
 
     @Override
-    protected void extractWidgetRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float a) {
+    protected void extractWidgetRenderState(@NonNull GuiGraphicsExtractor graphics, int mouseX, int mouseY, float a) {
         AvatarRenderState state = this.state;
         ClientConfig config = ClientConfig.get();
         if (config.dollShowsArmor != this.dressedWithArmor || config.dollShowsItems != this.dressedWithItems) {

@@ -56,9 +56,9 @@ public class NewWorldCharacterScreen extends Screen {
 
         LinearLayout buttons = this.layout.addChild(LinearLayout.vertical().spacing(4));
         buttons.defaultCellSetting().paddingTop(8).alignHorizontallyCenter();
-        buttons.addChild(Button.builder(Component.translatable("parallel.newworld.create", worldName), button -> this.createCharacter()).width(200).build());
-        buttons.addChild(Button.builder(Component.translatable("parallel.newworld.without"), button -> this.playWithoutCharacter()).width(200).build());
-        buttons.addChild(Button.builder(CommonComponents.GUI_CANCEL, button -> this.onClose()).width(200).build());
+        buttons.addChild(Button.builder(Component.translatable("parallel.newworld.create", worldName), _ -> this.createCharacter()).width(200).build());
+        buttons.addChild(Button.builder(Component.translatable("parallel.newworld.without"), _ -> this.playWithoutCharacter()).width(200).build());
+        buttons.addChild(Button.builder(CommonComponents.GUI_CANCEL, _ -> this.onClose()).width(200).build());
 
         this.layout.visitWidgets(this::addRenderableWidget);
         this.repositionElements();

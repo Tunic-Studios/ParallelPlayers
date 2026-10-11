@@ -32,7 +32,7 @@ import java.util.UUID;
  * character without a world.
  *
  * <p>The snapshot is needed because items cannot be rebuilt from the saved player data outside a
- * world: vanilla only binds the items' default components (which say, for instance, which armor
+ * world: vanilla only binds the items' default components (which say, for instance, which armour
  * texture an item uses) when a world's registries load. So the render-relevant components are
  * captured while in a world and the stacks are rebuilt from them, on a direct holder that carries
  * exactly those components.
@@ -99,7 +99,7 @@ public record CharacterLoadout(ItemStack head, ItemStack chest, ItemStack legs, 
     }
 
     /**
-     * Armor trims reference data-driven registries (trim materials and patterns), which the menu cannot
+     * Armour trims reference data-driven registries (trim materials and patterns), which the menu cannot
      * look up. So the trim's material and pattern are stored by value and rebuilt as direct holders.
      */
     private static void captureTrim(RegistryOps<Tag> ops, ItemStack stack, CompoundTag components) {

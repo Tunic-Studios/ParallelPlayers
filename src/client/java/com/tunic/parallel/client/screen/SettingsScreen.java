@@ -58,7 +58,7 @@ public class SettingsScreen extends OptionsSubScreen {
                         .withValues(BackupTiming.values())
                         .withTooltip(timing -> Tooltip.create(Component.translatable(timing.translationKey() + ".tooltip")))
                         .create(0, 0, BUTTON_WIDTH, 20, Component.translatable("parallel.settings.backup_timing"),
-                                (button, timing) -> this.client.backupTiming = timing));
+                                (_, timing) -> this.client.backupTiming = timing));
 
         this.list.addHeader(Component.translatable("parallel.settings.section.worlds"));
         Component note = Component.translatable("parallel.settings.section.worlds.note");
@@ -88,7 +88,7 @@ public class SettingsScreen extends OptionsSubScreen {
         Tooltip tooltip = Tooltip.create(text);
         return CycleButton.onOffBuilder(value)
                 .withTooltip(ignored -> tooltip)
-                .create(0, 0, BUTTON_WIDTH, 20, Component.translatable(key), (button, newValue) -> onChange.accept(newValue));
+                .create(0, 0, BUTTON_WIDTH, 20, Component.translatable(key), (_, newValue) -> onChange.accept(newValue));
     }
 
     /** Backups kept per character, from none to {@link ClientConfig#MAX_BACKUP_LIMIT}. */
