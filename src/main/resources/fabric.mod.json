@@ -3,7 +3,7 @@
   "id": "parallel",
   "version": "${version}",
   "name": "Parallel Players",
-  "description": "",
+  "description": "Adds Terraria-style characters for Minecraft.",
   "authors": ["fey"],
   "contact": {},
   "license": "MIT",

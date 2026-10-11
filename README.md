@@ -7,6 +7,8 @@ before you play and it comes with you or switch to another and pick up where tha
 Characters are stored locally, outside any world, so the same character can play in all your
 singleplayer worlds and on servers that have the mod installed.
 
+![character_select.png](img/character_select.png)
+
 **Requires Minecraft 26.3, Fabric Loader and Fabric API.**
 
 ## Features
