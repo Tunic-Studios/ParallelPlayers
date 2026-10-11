@@ -1,8 +1,10 @@
 package com.tunic.parallel_players;
 
 import com.tunic.parallel_players.character.ActiveCharacter;
+import com.tunic.parallel_players.character.CharacterRules;
 import com.tunic.parallel_players.character.CharacterStore;
 import net.fabricmc.api.ModInitializer;
+import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
 import net.fabricmc.loader.api.FabricLoader;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -49,6 +51,8 @@ public class ParallelPlayers implements ModInitializer {
     @Override
     public void onInitialize() {
         migrateLegacyFolder();
+        ServerPlayConnectionEvents.JOIN.register((handler, sender, server) ->
+                CharacterRules.onJoin(server, handler.getPlayer()).ifPresent(refusal -> handler.disconnect(refusal.message())));
     }
 
     /**

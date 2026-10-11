@@ -52,6 +52,27 @@ public class ParallelPlayersLangProvider extends FabricLanguageProvider {
         builder.add("parallelplayers.skin.error.too_large", "That file is too large to be a skin");
         builder.add("parallelplayers.skin.error.read", "Could not read that file");
 
+        // Character modes
+        builder.add("parallelplayers.mode.label", "Mode");
+        builder.add("parallelplayers.mode.survival", "Survival");
+        builder.add("parallelplayers.mode.creative", "Creative");
+        builder.add("parallelplayers.mode.hardcore", "Hardcore");
+        builder.add("parallelplayers.mode.survival.description", "Can only join survival worlds with cheats off.");
+        builder.add("parallelplayers.mode.creative.description", "Can only join worlds that are Creative or have cheats enabled.");
+        builder.add("parallelplayers.mode.hardcore.description", "Can only join hardcore worlds.");
+        builder.add("parallelplayers.mode.locked", "The mode cannot be changed after the character is created.");
+        builder.add("parallelplayers.mode.blocked.title", "Wrong character for this world");
+        builder.add("parallelplayers.mode.blocked.message", "%s is a %s character, but this is a %s world.");
+        builder.add("parallelplayers.mode.blocked.suggest", "Characters that can join: %s");
+        builder.add("parallelplayers.mode.blocked.none", "You have no %s characters yet. Create one in the Characters menu, or deselect your character.");
+
+        // New world without a usable character
+        builder.add("parallelplayers.newworld.title", "Create a character for this world?");
+        builder.add("parallelplayers.newworld.message", "You are not playing as a character. This will be a %s world.");
+        builder.add("parallelplayers.newworld.mismatch", "%s is a %s character, but this will be a %s world.");
+        builder.add("parallelplayers.newworld.create", "Create a %s character");
+        builder.add("parallelplayers.newworld.without", "Play without a character");
+
         // In-game nickname hover
         builder.add("parallelplayers.nickname.username", "%s");
     }

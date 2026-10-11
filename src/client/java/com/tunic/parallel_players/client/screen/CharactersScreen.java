@@ -2,6 +2,7 @@ package com.tunic.parallel_players.client.screen;
 
 import com.tunic.parallel_players.ParallelPlayers;
 import com.tunic.parallel_players.character.CharacterLoadout;
+import com.tunic.parallel_players.character.CharacterMode;
 import com.tunic.parallel_players.character.CharacterMeta;
 import com.tunic.parallel_players.client.CharacterSkins;
 import net.minecraft.ChatFormatting;
@@ -180,10 +181,10 @@ public class CharactersScreen extends Screen {
 
     private void createCharacter() {
         Component title = Component.translatable("parallelplayers.characters.name.new");
-        this.minecraft.gui.setScreen(new CharacterNameScreen(this, title, "", CommonComponents.GUI_CONTINUE, name ->
+        this.minecraft.gui.setScreen(new CharacterNameScreen(this, title, "", CommonComponents.GUI_CONTINUE, true, (name, mode) ->
                 // Second step: choose the skin; the character only exists once that is confirmed.
                 this.minecraft.gui.setScreen(new CharacterSkinScreen(this, name, null, this.accountSkin, result -> {
-                    CharacterMeta created = ParallelPlayers.characters().create(name, result.skin(), result.image());
+                    CharacterMeta created = ParallelPlayers.characters().create(name, mode, result.skin(), result.image());
                     CharacterSkins.invalidate(created.id());
                     this.selectedId = created.id();
                     // Make the first character active right away so it is used without an extra step.
@@ -213,7 +214,7 @@ public class CharactersScreen extends Screen {
             return;
         }
         UUID id = selected.meta.id();
-        this.minecraft.gui.setScreen(new CharacterNameScreen(this, Component.translatable("parallelplayers.characters.name.rename"), selected.meta.name(), name -> {
+        this.minecraft.gui.setScreen(new CharacterNameScreen(this, Component.translatable("parallelplayers.characters.name.rename"), selected.meta.name(), (name, mode) -> {
             ParallelPlayers.characters().rename(id, name);
             this.refresh();
         }));
@@ -298,6 +299,22 @@ public class CharactersScreen extends Screen {
             return super.keyPressed(event);
         }
 
+        /** The character's mode, right-aligned in the row; nothing for a character that has none yet. */
+        private void extractModeBadge(GuiGraphicsExtractor graphics) {
+            CharacterMode mode = this.meta.modeChoice();
+            if (mode == null) {
+                return;
+            }
+            Component label = Component.translatable(mode.translationKey());
+            int x = this.getContentX() + this.getContentWidth() - CharactersScreen.this.font.width(label) - 6;
+            int color = switch (mode) {
+                case SURVIVAL -> 0xFF6FB6FF;
+                case CREATIVE -> 0xFFFFD84D;
+                case HARDCORE -> 0xFFFF5555;
+            };
+            graphics.text(CharactersScreen.this.font, label, x, this.getContentY() + 2, color);
+        }
+
         @Override
         public void extractContent(GuiGraphicsExtractor graphics, int mouseX, int mouseY, boolean hovered, float a) {
             int x = this.getContentX() + 4;
@@ -307,6 +324,7 @@ public class CharactersScreen extends Screen {
                 Component label = Component.translatable("parallelplayers.characters.active");
                 graphics.text(CharactersScreen.this.font, label, x + CharactersScreen.this.font.width(this.meta.name()) + 6, y, ACTIVE_COLOR);
             }
+            this.extractModeBadge(graphics);
             String played = DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.SHORT).format(new Date(this.meta.lastPlayedAt()));
             graphics.text(CharactersScreen.this.font, Component.translatable("parallelplayers.characters.last_played", played), x, y + 12, SUBTEXT_COLOR);
         }

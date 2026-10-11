@@ -87,18 +87,22 @@ public final class CharacterStore {
 
     public CharacterMeta create(String name) {
         long now = System.currentTimeMillis();
-        CharacterMeta meta = new CharacterMeta(UUID.randomUUID(), sanitizeName(name), now, now, null, false);
+        CharacterMeta meta = new CharacterMeta(UUID.randomUUID(), sanitizeName(name), now, now, null, false, null);
         writeMeta(meta);
         return meta;
     }
 
     /**
-     * Creates a character that already has its skin chosen.
+     * Creates a character that already has its mode and skin chosen.
      *
+     * @param mode  the character's mode, or {@code null} to let it adopt the first world it joins
      * @param image the PNG for {@link CharacterSkin#CUSTOM}, otherwise ignored
      */
-    public CharacterMeta create(String name, CharacterSkin skin, byte @Nullable [] image) {
+    public CharacterMeta create(String name, @Nullable CharacterMode mode, CharacterSkin skin, byte @Nullable [] image) {
         CharacterMeta meta = create(name);
+        if (mode != null) {
+            setMode(meta.id(), mode);
+        }
         setSkin(meta.id(), skin, image);
         return get(meta.id()).orElse(meta);
     }
@@ -123,6 +127,24 @@ public final class CharacterStore {
         }
         CharacterSkin effective = skin.isCustom() && !Files.isRegularFile(file) ? CharacterSkin.ACCOUNT : skin;
         writeMeta(require(id).withSkin(effective));
+    }
+
+    /**
+     * Gives a character its mode. A mode can only be set once; it stays fixed so that, for example, a
+     * hardcore character cannot be turned into a survival one afterwards.
+     *
+     * @throws IllegalStateException if the character already has a different mode
+     */
+    public void setMode(UUID id, CharacterMode mode) {
+        CharacterMeta meta = require(id);
+        CharacterMode current = meta.modeChoice();
+        if (current == mode) {
+            return;
+        }
+        if (current != null) {
+            throw new IllegalStateException("Character " + id + " is already " + current);
+        }
+        writeMeta(meta.withMode(mode));
     }
 
     /** Where an imported skin image is kept; only present for {@link CharacterSkin#CUSTOM}. */
