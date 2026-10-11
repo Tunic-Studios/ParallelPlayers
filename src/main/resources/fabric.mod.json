@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "id": "parallelplayers",
+  "version": "${version}",
+  "name": "Parallel Players",
+  "description": "",
+  "authors": [],
+  "contact": {},
+  "license": "MIT",
+  "icon": "assets/parallelplayers/icon.png",
+  "environment": "*",
+  "entrypoints": {
+    "fabric-datagen": [
+      "com.tunic.parallel_players.client.ParallelPlayersDataGenerator"
+    ],
+    "client": [
+      "com.tunic.parallel_players.client.ParallelPlayersClient"
+    ],
+    "main": [
+      "com.tunic.parallel_players.ParallelPlayers"
+    ]
+  },
+  "mixins": [
+    "parallelplayers.mixins.json",
+    {
+      "config": "parallelplayers.client.mixins.json",
+      "environment": "client"
+    }
+  ],
+  "depends": {
+    "fabricloader": ">=${loader_version}",
+    "fabric-api": "*",
+    "minecraft": "${minecraft_version}"
+  }
+}
