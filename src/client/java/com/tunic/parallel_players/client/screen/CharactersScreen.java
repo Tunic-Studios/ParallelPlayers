@@ -296,10 +296,23 @@ public class CharactersScreen extends Screen {
                 CommonComponents.GUI_CANCEL));
     }
 
+    /** "2h 15m", "40m", or "less than a minute" for a character that has barely been played. */
+    private static String formatPlayTime(long ticks) {
+        long minutes = ticks / (20L * 60L);
+        long hours = minutes / 60L;
+        if (hours > 0) {
+            return hours + "h " + (minutes % 60L) + "m";
+        }
+        if (minutes > 0) {
+            return minutes + "m";
+        }
+        return Component.translatable("parallelplayers.characters.playtime.short").getString();
+    }
+
     private class CharacterList extends DollSideList<CharacterEntry> {
 
         CharacterList(Minecraft minecraft, int width, int height, int y) {
-            super(minecraft, width, height, y, 36);
+            super(minecraft, width, height, y, 40);
         }
 
         @Override
@@ -327,10 +340,12 @@ public class CharactersScreen extends Screen {
         final boolean active;
         /** False for a character that cannot enter the world being chosen for; it is greyed out. */
         final boolean enabled;
+        final long playTimeTicks;
 
         CharacterEntry(CharacterMeta meta, boolean active) {
             this.meta = meta;
             this.active = active;
+            this.playTimeTicks = ParallelPlayers.characters().playTimeTicks(meta.id());
             WorldRequirement requirement = CharactersScreen.this.requirement;
             CharacterMode mode = meta.modeChoice();
             this.enabled = requirement == null || mode == null || mode.canJoin(requirement.world());
@@ -385,15 +400,18 @@ public class CharactersScreen extends Screen {
                 graphics.text(CharactersScreen.this.font, label, x + CharactersScreen.this.font.width(this.meta.name()) + 6, y, ACTIVE_COLOR);
             }
             this.extractModeBadge(graphics);
+            int detailColor = this.enabled ? SUBTEXT_COLOR : DISABLED_COLOR;
             if (!this.enabled && CharactersScreen.this.requirement != null && this.meta.modeChoice() != null) {
                 // Say why it is greyed out, in the line that normally holds the last-played time.
                 Component reason = Component.translatable("parallelplayers.characters.cannot_join",
                         Component.translatable(CharactersScreen.this.requirement.world().translationKey()));
                 graphics.text(CharactersScreen.this.font, reason, x, y + 12, DISABLED_COLOR);
-                return;
+            } else {
+                String played = DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.SHORT).format(new Date(this.meta.lastPlayedAt()));
+                graphics.text(CharactersScreen.this.font, Component.translatable("parallelplayers.characters.last_played", played), x, y + 12, detailColor);
             }
-            String played = DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.SHORT).format(new Date(this.meta.lastPlayedAt()));
-            graphics.text(CharactersScreen.this.font, Component.translatable("parallelplayers.characters.last_played", played), x, y + 12, SUBTEXT_COLOR);
+            graphics.text(CharactersScreen.this.font,
+                    Component.translatable("parallelplayers.characters.playtime", formatPlayTime(this.playTimeTicks)), x, y + 22, detailColor);
         }
     }
 }

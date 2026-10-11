@@ -14,6 +14,8 @@
   "parallelplayers.characters.name.rename": "Rename Character",
   "parallelplayers.characters.new": "New Character",
   "parallelplayers.characters.playing_as": "Playing as %s",
+  "parallelplayers.characters.playtime": "Playtime: %s",
+  "parallelplayers.characters.playtime.short": "less than a minute",
   "parallelplayers.characters.rename": "Rename",
   "parallelplayers.characters.select": "Select",
   "parallelplayers.characters.skin": "Skin",

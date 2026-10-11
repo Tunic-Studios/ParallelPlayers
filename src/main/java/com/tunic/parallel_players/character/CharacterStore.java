@@ -2,7 +2,9 @@ package com.tunic.parallel_players.character;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
+import com.google.gson.JsonElement;
 import com.google.gson.JsonParseException;
+import com.google.gson.JsonParser;
 import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -243,6 +245,30 @@ public final class CharacterStore {
             for (Path p : sorted.stream().skip(MAX_BACKUPS).toList()) {
                 Files.deleteIfExists(p);
             }
+        }
+    }
+
+    /**
+     * How long the character has been played, in ticks, from vanilla's own play-time statistic in its
+     * stats file. That file is written when the game saves, so this lags by up to an autosave interval.
+     *
+     * @return 0 if the character has no statistics yet or they cannot be read
+     */
+    public long playTimeTicks(UUID id) {
+        Path file = statsFile(id);
+        if (!Files.isRegularFile(file)) {
+            return 0L;
+        }
+        try {
+            JsonElement root = JsonParser.parseString(Files.readString(file, StandardCharsets.UTF_8));
+            JsonElement time = root.getAsJsonObject()
+                    .getAsJsonObject("stats")
+                    .getAsJsonObject("minecraft:custom")
+                    .get("minecraft:play_time");
+            return time == null ? 0L : time.getAsLong();
+        } catch (IOException | RuntimeException e) {
+            // A missing section (NullPointerException from the chain), wrong types or bad JSON all mean "unknown".
+            return 0L;
         }
     }
 
