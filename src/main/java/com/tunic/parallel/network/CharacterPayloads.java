@@ -49,8 +49,15 @@ public final class CharacterPayloads {
         PayloadTypeRegistry.clientboundPlay().register(ShowUsernames.TYPE, ShowUsernames.STREAM_CODEC);
     }
 
+    /**
+     * Raise whenever any of these messages changes. It is part of every channel name, so a client and a server
+     * with different protocols do not see each other's channels at all: the player joins as their account,
+     * as with a server without the mod, instead of being disconnected by a message the other cannot read.
+     */
+    private static final int PROTOCOL = 1;
+
     private static <T extends CustomPacketPayload> CustomPacketPayload.Type<T> payloadType(String name) {
-        return new CustomPacketPayload.Type<>(Identifier.fromNamespaceAndPath(ParallelPlayers.MOD_ID, name));
+        return new CustomPacketPayload.Type<>(Identifier.fromNamespaceAndPath(ParallelPlayers.MOD_ID, "v" + PROTOCOL + "/" + name));
     }
 
     /**

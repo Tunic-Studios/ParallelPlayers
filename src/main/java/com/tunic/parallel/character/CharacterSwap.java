@@ -137,7 +137,7 @@ public final class CharacterSwap {
                 return Optional.empty();
             }
             CompoundTag tag = NbtIo.readCompressed(new ByteArrayInputStream(bytes.get()), NbtAccounter.unlimitedHeap());
-            tag = DataFixTypes.PLAYER.updateToCurrentVersion(server.getFixerUpper(), tag, NbtUtils.getDataVersion(tag));
+            int savedVersion = NbtUtils.getDataVersion(tag);
 
             CompoundTag worldLocation = tag.getCompound(LOCATIONS_KEY)
                     .flatMap(locations -> locations.getCompound(worldId(server)))
@@ -148,8 +148,12 @@ public final class CharacterSwap {
             for (String key : LOCATION_KEYS) {
                 tag.remove(key);
             }
+            tag = DataFixTypes.PLAYER.updateToCurrentVersion(server.getFixerUpper(), tag, savedVersion);
             if (worldLocation != null) {
-                copyLocation(worldLocation, tag);
+                // Brought up to date on its own: it was saved when the character was last in this world, possibly
+                // several game versions before the rest of its data, which vanilla's upgrade does not look inside.
+                int locationVersion = NbtUtils.getDataVersion(worldLocation, savedVersion);
+                copyLocation(DataFixTypes.PLAYER.updateToCurrentVersion(server.getFixerUpper(), worldLocation, locationVersion), tag);
             }
             // Otherwise the character has never been in this world: it spawns at the world's spawn point.
             return Optional.of(tag);
@@ -377,7 +381,8 @@ public final class CharacterSwap {
                     here.put(key, value);
                 }
             }
-            locations.put(worldId(server), here);
+            // Each world's entry says which game version wrote it, so it can be upgraded on its own later.
+            locations.put(worldId(server), NbtUtils.addCurrentDataVersion(here));
             tag.put(LOCATIONS_KEY, locations);
 
             ByteArrayOutputStream out = new ByteArrayOutputStream();
