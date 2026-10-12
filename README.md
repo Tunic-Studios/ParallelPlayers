@@ -26,6 +26,8 @@ singleplayer worlds and on servers that have the mod installed.
 - Your account's data in a world is set aside while a character plays there and is given back when you
   play that world as your account again.
 
+![custom_skin.png](img/custom_skin.png)
+
 ### Custom skins
 - Giving a character their own skin either your active account skin, one of the default skins, or any skin you may want to import.
 
@@ -36,6 +38,8 @@ singleplayer worlds and on servers that have the mod installed.
   - **Creative** characters join worlds that are Creative or have cheats enabled
   - **Hardcore** characters join only hardcore worlds
 - Opening a world that does not suit your selected character takes you to character selection, creating a world also offers to make a character for it.
+
+![main_menu.png](img/main_menu.png)
 
 ### In-game
 - Your character's name is used in chat, tab list, name tag, join, death and advancement messages, hovering over it
@@ -61,14 +65,14 @@ singleplayer worlds and on servers that have the mod installed.
   | `parallel.gamemodes.bypass` | nobody    | taking a character into a world of another gamemode |
   | `parallel.usernames.see`    | operators | seeing the usernames of players on characters       |
 
-## Where things are kept
+## Locations
 
-| What                                   | Where                                           |
-|----------------------------------------|-------------------------------------------------|
-| Your characters                        | `characters/` in the game folder                |
-| Which character is selected            | `characters/active_character.txt`               |
+| What                                         | Where                                     |
+|----------------------------------------------|-------------------------------------------|
+| Your characters                              | `characters/` in the game folder          |
+| Which character is selected                  | `characters/active_character.txt`         |
 | A server's copies of its players' characters | `<world>/parallel/players/` on the server |
-| Account data set aside in a world      | `<world>/parallel/accounts/`                    |
+| Account data set aside in a world            | `<world>/parallel/accounts/`              |
 
 ## Building
 
