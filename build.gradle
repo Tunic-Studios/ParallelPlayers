@@ -3,7 +3,9 @@ plugins {
     id 'maven-publish'
 }
 
-version = project.mod_version
+// The Minecraft version goes after a "+", as build metadata: it names the jar and shows in the mod list,
+// and Fabric ignores it when comparing versions.
+version = "${project.mod_version}+${project.minecraft_version}"
 group = project.maven_group
 
 base {
@@ -84,6 +86,7 @@ processResources {
             "version"          : project.version,
             "minecraft_version": providers.gradleProperty("minecraft_version").get(),
             "loader_version"   : providers.gradleProperty("loader_version").get(),
+            "fabric_version"   : providers.gradleProperty("fabric_version").get(),
     ]
     inputs.properties resourceProperties
     filteringCharset = "UTF-8"
@@ -118,8 +121,8 @@ java {
 
 jar {
     def baseName = providers.gradleProperty("archives_base_name").get()
-    from("LICENSE") {
-        rename { "${it}_${baseName}" }
+    from("LICENSE.md") {
+        rename { "LICENSE_${baseName}.md" }
     }
 }
 

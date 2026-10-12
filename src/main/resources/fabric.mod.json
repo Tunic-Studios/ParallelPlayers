@@ -5,7 +5,11 @@
   "name": "Parallel Players",
   "description": "Adds Terraria-style characters for Minecraft.",
   "authors": ["fey"],
-  "contact": {},
+  "contact": {
+    "homepage": "https://github.com/Tunic-Studios/ParallelPlayers",
+    "sources": "https://github.com/Tunic-Studios/ParallelPlayers",
+    "issues": "https://github.com/Tunic-Studios/ParallelPlayers/issues"
+  },
   "license": "MIT",
   "icon": "assets/parallel/icon.png",
   "environment": "*",
@@ -32,7 +36,10 @@
   ],
   "depends": {
     "fabricloader": ">=${loader_version}",
-    "fabric-api": "*",
+    "fabric-api": ">=${fabric_version}",
     "minecraft": "${minecraft_version}"
+  },
+  "suggests": {
+    "modmenu": "*"
   }
 }
