@@ -1,11 +1,13 @@
 package com.tunic.parallel.character;
 
+import com.google.common.hash.Hashing;
 import org.jspecify.annotations.Nullable;
 
 import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
+import java.util.regex.Pattern;
 
 /**
  * Which skin a character uses.
@@ -32,6 +34,9 @@ public record CharacterSkin(@Nullable String id, boolean slim) {
     private static final byte[] PNG_SIGNATURE = {(byte) 0x89, 'P', 'N', 'G', '\r', '\n', 0x1A, '\n'};
     /** "IHDR", the chunk every PNG starts with, which holds its size. */
     private static final int PNG_HEADER_CHUNK = 0x49484452;
+
+    /** What {@link #hash} returns: SHA-256 in lowercase hex. */
+    private static final Pattern HASH = Pattern.compile("[0-9a-f]{64}");
 
     public static final CharacterSkin ACCOUNT = new CharacterSkin(null, false);
 
@@ -91,6 +96,22 @@ public record CharacterSkin(@Nullable String id, boolean slim) {
     /** Whether the bytes are a valid skin image; see {@link #imageProblem}. */
     public static boolean isSkinImage(byte[] png) {
         return imageProblem(png).isEmpty();
+    }
+
+    /**
+     * Names a skin image by its content, so clients can keep the images they have seen and only fetch the
+     * ones they have not; see {@link #isHash}.
+     */
+    public static String hash(byte[] png) {
+        return Hashing.sha256().hashBytes(png).toString();
+    }
+
+    /**
+     * Whether the text has the form of a {@link #hash}. Hashes from the network are checked with this before
+     * use, as they also name files.
+     */
+    public static boolean isHash(String text) {
+        return HASH.matcher(text).matches();
     }
 
     public CharacterSkin withSlim(boolean slim) {

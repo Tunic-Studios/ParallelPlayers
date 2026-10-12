@@ -38,6 +38,13 @@ public final class CharacterSync {
     private static final Set<UUID> ASKED = ConcurrentHashMap.newKeySet();
     /** The character as last sent to each player, so later syncs only need to carry what changed. */
     private static final Map<UUID, CharacterBundle> LAST_SENT = new ConcurrentHashMap<>();
+    /** The imported skin of each online player's character, for clients that ask for it. */
+    private static final Map<UUID, SharedSkin> SHARED_SKINS = new ConcurrentHashMap<>();
+    /** The skin hashes each player has been sent the image of, so asking again sends nothing. */
+    private static final Map<UUID, Set<String>> SKINS_SENT = new ConcurrentHashMap<>();
+
+    private record SharedSkin(String hash, byte[] image) {
+    }
 
     private static final Logger LOGGER = LoggerFactory.getLogger(ParallelPlayers.MOD_ID);
 
@@ -53,13 +60,32 @@ public final class CharacterSync {
             shareCharacters(server, handler.getPlayer());
             shareUsernameVisibility(server, handler.getPlayer());
         });
-        ServerPlayConnectionEvents.DISCONNECT.register((handler, _) -> LAST_SENT.remove(handler.getPlayer().getUUID()));
+        ServerPlayConnectionEvents.DISCONNECT.register((handler, _) -> {
+            UUID player = handler.getPlayer().getUUID();
+            LAST_SENT.remove(player);
+            SHARED_SKINS.remove(player);
+            SKINS_SENT.remove(player);
+        });
         ServerTickEvents.END_SERVER_TICK.register(CharacterSync::syncPeriodically);
         // Play-phase handlers run on the server thread.
         ServerPlayNetworking.registerGlobalReceiver(CharacterPayloads.Leave.TYPE, (_, context) -> {
             CharacterSwap.saveBeforeLeaving(context.server(), context.player());
             context.responseSender().sendPacket(new CharacterPayloads.LeaveReady());
         });
+        ServerPlayNetworking.registerGlobalReceiver(CharacterPayloads.SkinRequest.TYPE, CharacterSync::onSkinRequest);
+    }
+
+    /** Sends the image of a skin an online player's character uses, once per connection and image. */
+    private static void onSkinRequest(CharacterPayloads.SkinRequest payload, ServerPlayNetworking.Context context) {
+        String hash = payload.hash();
+        for (SharedSkin skin : SHARED_SKINS.values()) {
+            if (skin.hash().equals(hash)) {
+                if (SKINS_SENT.computeIfAbsent(context.player().getUUID(), _ -> ConcurrentHashMap.newKeySet()).add(hash)) {
+                    context.responseSender().sendPacket(new CharacterPayloads.SkinImage(hash, skin.image()));
+                }
+                return;
+            }
+        }
     }
 
     /** Tells the player's client whether it may show the usernames of players on characters. */
@@ -132,9 +158,13 @@ public final class CharacterSync {
         }
     }
 
-    /** The name and skin of the player's character, or an entry with neither when they play as their account. */
+    /**
+     * The name and skin of the player's character, or an entry with neither when they play as their account.
+     * Remembers the image of an imported skin, for clients that ask for it.
+     */
     private static CharacterPayloads.PlayerCharacters.Entry characterOf(ServerPlayer player) {
         UUID id = player.getUUID();
+        SHARED_SKINS.remove(id);
         CharacterSwap.Session session = CharacterSwap.session(player.nameAndId()).orElse(null);
         CharacterMeta meta = session == null ? null : session.meta().orElse(null);
         if (meta == null) {
@@ -149,9 +179,12 @@ public final class CharacterSync {
         }
         try {
             byte[] image = session.storage().skinImage(meta.id());
-            return image == null
-                    ? new CharacterPayloads.PlayerCharacters.Entry(id, meta.name(), null, null)
-                    : new CharacterPayloads.PlayerCharacters.Entry(id, meta.name(), skin, image);
+            if (image == null) {
+                return new CharacterPayloads.PlayerCharacters.Entry(id, meta.name(), null, null);
+            }
+            String hash = CharacterSkin.hash(image);
+            SHARED_SKINS.put(id, new SharedSkin(hash, image));
+            return new CharacterPayloads.PlayerCharacters.Entry(id, meta.name(), skin, hash);
         } catch (UncheckedIOException e) {
             LOGGER.warn("Could not read the skin of {}'s character", player.getPlainTextName(), e);
             return new CharacterPayloads.PlayerCharacters.Entry(id, meta.name(), null, null);

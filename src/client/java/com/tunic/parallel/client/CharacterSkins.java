@@ -6,6 +6,9 @@ import com.tunic.parallel.character.CharacterMeta;
 import com.tunic.parallel.character.CharacterSkin;
 import com.tunic.parallel.config.ServerConfig;
 import com.tunic.parallel.mixin.client.SkinTextureDownloaderAccessor;
+import com.tunic.parallel.network.CharacterPayloads;
+import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
+import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.texture.DynamicTexture;
 import net.minecraft.core.ClientAsset;
@@ -20,6 +23,10 @@ import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.nio.file.AtomicMoveNotSupportedException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.*;
 
 /**
@@ -38,11 +45,21 @@ public final class CharacterSkins {
      * The character skins of other players on the connected server, by player, as the server sent them. A
      * player without an entry is drawn with their account's skin. Only touched on the client thread.
      */
-    private static final Map<UUID, OtherSkin> OTHERS = new HashMap<>();
-
-    /** Another player's character skin; {@code texture} is set for an imported one. */
-    private record OtherSkin(CharacterSkin choice, ClientAsset.@Nullable ResourceTexture texture) {
-    }
+    private static final Map<UUID, CharacterSkin> OTHERS = new HashMap<>();
+    /** The skin hashes of other players' imported skins, by player. */
+    private static final Map<UUID, String> OTHER_HASHES = new HashMap<>();
+    /** Other players' imported skins uploaded to the GPU, by hash; players with the same image share one. */
+    private static final Map<String, ClientAsset.ResourceTexture> BY_HASH = new HashMap<>();
+    /**
+     * Hashes looked up in the {@link #CACHE_DIR} or asked from the server since joining, so neither is done
+     * twice; an image is only taken from the server if it was asked for.
+     */
+    private static final Set<String> LOOKED_UP = new HashSet<>();
+    /**
+     * Imported skins of other players, kept across sessions and servers by {@link CharacterSkin#hash} the way
+     * vanilla keeps account skins, so each image is only ever sent once.
+     */
+    private static final Path CACHE_DIR = FabricLoader.getInstance().getGameDir().resolve("parallel").resolve("skin_cache");
 
     private CharacterSkins() {
     }
@@ -75,59 +92,119 @@ public final class CharacterSkins {
 
     /** The skin another player is shown with: their character's, if the server said they play one. */
     public static PlayerSkin forOtherPlayer(UUID player, PlayerSkin account) {
-        OtherSkin other = OTHERS.get(player);
-        if (other == null) {
+        CharacterSkin choice = OTHERS.get(player);
+        if (choice == null) {
             return account;
         }
-        if (other.texture() != null) {
-            return with(other.texture(), other.choice().slim(), account);
+        if (choice.isPreset()) {
+            return preset(choice, account);
         }
-        return other.choice().isPreset() ? preset(other.choice(), account) : account;
+        String hash = OTHER_HASHES.get(player);
+        ClientAsset.ResourceTexture texture = hash == null ? null : sharedTexture(hash);
+        // Until the image is here, they look like their account.
+        return texture != null ? with(texture, choice.slim(), account) : account;
     }
 
     /**
      * Remembers another player's character skin, as the server sent it.
      *
      * @param skin  their character's skin, or {@code null} to show them with their account's skin again
-     * @param image the PNG of an imported skin
+     * @param image the {@link CharacterSkin#hash} of an imported skin's PNG
      */
-    public static void setOtherPlayer(UUID player, @Nullable CharacterSkin skin, byte @Nullable [] image) {
-        forgetOtherPlayer(player);
-        if (skin == null) {
+    public static void setOtherPlayer(UUID player, @Nullable CharacterSkin skin, @Nullable String image) {
+        OTHERS.remove(player);
+        OTHER_HASHES.remove(player);
+        if (skin == null || skin.isCustom() && image == null) {
             return;
         }
-        if (!skin.isCustom()) {
-            OTHERS.put(player, new OtherSkin(skin, null));
+        OTHERS.put(player, skin);
+        if (skin.isCustom()) {
+            OTHER_HASHES.put(player, image);
+        }
+    }
+
+    /**
+     * The texture of another player's imported skin. The first time a hash is needed, it is read from the
+     * {@link #CACHE_DIR}, or else asked from the server; {@code null} until it has arrived.
+     */
+    private static ClientAsset.@Nullable ResourceTexture sharedTexture(String hash) {
+        ClientAsset.ResourceTexture loaded = BY_HASH.get(hash);
+        if (loaded != null || !LOOKED_UP.add(hash)) {
+            return loaded;
+        }
+        byte[] cached = readCached(hash);
+        if (cached != null && load(hash, cached)) {
+            return BY_HASH.get(hash);
+        }
+        if (ClientPlayNetworking.canSend(CharacterPayloads.SkinRequest.TYPE)) {
+            ClientPlayNetworking.send(new CharacterPayloads.SkinRequest(hash));
+        }
+        return null;
+    }
+
+    /** Takes an image the server sent for a {@link CharacterPayloads.SkinRequest}, and keeps it for next time. */
+    public static void receiveImage(String hash, byte[] png) {
+        if (!LOOKED_UP.contains(hash) || BY_HASH.containsKey(hash) || !CharacterSkin.hash(png).equals(hash)) {
             return;
         }
-        if (image == null) {
-            return;
+        if (load(hash, png)) {
+            writeCached(hash, png);
+        }
+    }
+
+    /** Uploads an image of another player's skin; whether it was a valid skin image. */
+    private static boolean load(String hash, byte[] png) {
+        try {
+            Identifier textureId = Identifier.fromNamespaceAndPath(ParallelPlayers.MOD_ID, "textures/skins/" + hash + ".png");
+            register(textureId, decode(png));
+            BY_HASH.put(hash, texture(textureId));
+            return true;
+        } catch (IOException e) {
+            LOGGER.warn("Ignoring skin image {}", hash, e);
+            return false;
+        }
+    }
+
+    private static byte @Nullable [] readCached(String hash) {
+        Path file = CACHE_DIR.resolve(hash + ".png");
+        if (!Files.isRegularFile(file)) {
+            return null;
         }
         try {
-            Identifier textureId = otherPlayerId(player);
-            register(textureId, decode(image));
-            OTHERS.put(player, new OtherSkin(skin, texture(textureId)));
+            byte[] png = Files.readAllBytes(file);
+            // A damaged file is fetched again, and replaced.
+            return CharacterSkin.hash(png).equals(hash) ? png : null;
         } catch (IOException e) {
-            LOGGER.warn("Ignoring the skin the server sent for player {}", player, e);
+            LOGGER.warn("Could not read cached skin {}", hash, e);
+            return null;
+        }
+    }
+
+    private static void writeCached(String hash, byte[] png) {
+        Path file = CACHE_DIR.resolve(hash + ".png");
+        Path tmp = file.resolveSibling(file.getFileName() + ".tmp");
+        try {
+            Files.createDirectories(CACHE_DIR);
+            Files.write(tmp, png);
+            try {
+                Files.move(tmp, file, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+            } catch (AtomicMoveNotSupportedException _) {
+                Files.move(tmp, file, StandardCopyOption.REPLACE_EXISTING);
+            }
+        } catch (IOException e) {
+            LOGGER.warn("Could not cache skin {}", hash, e);
         }
     }
 
     /** Forgets every other player's skin; for when the client leaves a server. */
     public static void clearOtherPlayers() {
-        for (UUID player : List.copyOf(OTHERS.keySet())) {
-            forgetOtherPlayer(player);
+        OTHERS.clear();
+        OTHER_HASHES.clear();
+        LOOKED_UP.clear();
+        for (ClientAsset.ResourceTexture texture : BY_HASH.values()) {
+            Minecraft.getInstance().getTextureManager().release(texture.id());
         }
-    }
-
-    private static void forgetOtherPlayer(UUID player) {
-        OtherSkin previous = OTHERS.remove(player);
-        if (previous != null && previous.texture() != null) {
-            Minecraft.getInstance().getTextureManager().release(otherPlayerId(player));
-        }
-    }
-
-    private static Identifier otherPlayerId(UUID player) {
-        return Identifier.fromNamespaceAndPath(ParallelPlayers.MOD_ID, "textures/players/" + player + ".png");
+        BY_HASH.clear();
     }
 
     /** The skin of the active character for the local player, or {@code account} when none applies. */

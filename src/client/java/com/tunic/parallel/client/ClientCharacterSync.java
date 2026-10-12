@@ -148,6 +148,8 @@ public final class ClientCharacterSync {
                 CharacterSkins.setOtherPlayer(entry.player(), entry.skin(), entry.image());
             }
         });
+        ClientPlayNetworking.registerGlobalReceiver(CharacterPayloads.SkinImage.TYPE, (payload, _) ->
+                CharacterSkins.receiveImage(payload.hash(), payload.image()));
     }
 
     /**

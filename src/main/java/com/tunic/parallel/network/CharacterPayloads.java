@@ -31,7 +31,9 @@ import java.util.UUID;
  * the save vanilla makes after the connection is gone could not reach the client any more.
  *
  * <p>The server also tells every client with the mod who each player is playing as ({@link PlayerCharacters}),
- * so characters look like themselves and carry their own name to everyone.
+ * so characters look like themselves and carry their own name to everyone. Imported skins are only named
+ * there, by hash; a client asks for the image ({@link SkinRequest}, answered with {@link SkinImage}) the
+ * first time it needs one it does not have yet, and keeps it for next time.
  */
 public final class CharacterPayloads {
 
@@ -45,7 +47,9 @@ public final class CharacterPayloads {
         PayloadTypeRegistry.clientboundPlay().registerLarge(Sync.TYPE, Sync.STREAM_CODEC, CharacterBundle.MAX_SIZE);
         PayloadTypeRegistry.serverboundPlay().register(Leave.TYPE, Leave.STREAM_CODEC);
         PayloadTypeRegistry.clientboundPlay().register(LeaveReady.TYPE, LeaveReady.STREAM_CODEC);
-        PayloadTypeRegistry.clientboundPlay().registerLarge(PlayerCharacters.TYPE, PlayerCharacters.STREAM_CODEC, PlayerCharacters.MAX_SIZE);
+        PayloadTypeRegistry.clientboundPlay().register(PlayerCharacters.TYPE, PlayerCharacters.STREAM_CODEC);
+        PayloadTypeRegistry.serverboundPlay().register(SkinRequest.TYPE, SkinRequest.STREAM_CODEC);
+        PayloadTypeRegistry.clientboundPlay().register(SkinImage.TYPE, SkinImage.STREAM_CODEC);
         PayloadTypeRegistry.clientboundPlay().register(ShowUsernames.TYPE, ShowUsernames.STREAM_CODEC);
     }
 
@@ -54,7 +58,7 @@ public final class CharacterPayloads {
      * with different protocols do not see each other's channels at all: the player joins as their account,
      * as with a server without the mod, instead of being disconnected by a message the other cannot read.
      */
-    private static final int PROTOCOL = 1;
+    private static final int PROTOCOL = 2;
 
     private static <T extends CustomPacketPayload> CustomPacketPayload.Type<T> payloadType(String name) {
         return new CustomPacketPayload.Type<>(Identifier.fromNamespaceAndPath(ParallelPlayers.MOD_ID, "v" + PROTOCOL + "/" + name));
@@ -163,8 +167,6 @@ public final class CharacterPayloads {
      */
     public record PlayerCharacters(List<Entry> players) implements CustomPacketPayload {
 
-        /** Enough for a full server of imported skins. */
-        public static final int MAX_SIZE = 64 * (CharacterSkin.MAX_IMAGE_BYTES + 1024);
         public static final Type<PlayerCharacters> TYPE = payloadType("player_characters");
         public static final StreamCodec<FriendlyByteBuf, PlayerCharacters> STREAM_CODEC = Entry.STREAM_CODEC
                 .apply(ByteBufCodecs.list())
@@ -178,9 +180,10 @@ public final class CharacterPayloads {
         /**
          * @param name  the character's name, or {@code null} when the player plays as their account
          * @param skin  the character's skin, or {@code null} for the account's own
-         * @param image the PNG for an imported skin ({@link CharacterSkin#CUSTOM}), otherwise {@code null}
+         * @param image the {@link CharacterSkin#hash} of the PNG for an imported skin ({@link CharacterSkin#CUSTOM}),
+         *              otherwise {@code null}
          */
-        public record Entry(UUID player, @Nullable String name, @Nullable CharacterSkin skin, byte @Nullable [] image) {
+        public record Entry(UUID player, @Nullable String name, @Nullable CharacterSkin skin, @Nullable String image) {
 
             public static final StreamCodec<FriendlyByteBuf, Entry> STREAM_CODEC = StreamCodec.of(
                     (buf, entry) -> {
@@ -190,13 +193,56 @@ public final class CharacterPayloads {
                             out.writeNullable(skin.id(), FriendlyByteBuf::writeUtf);
                             out.writeBoolean(skin.slim());
                         });
-                        buf.writeNullable(entry.image(), (out, bytes) -> out.writeByteArray(bytes));
+                        buf.writeNullable(entry.image(), (out, hash) -> out.writeUtf(hash, HASH_LENGTH));
                     },
                     buf -> new Entry(
                             buf.readUUID(),
                             buf.readNullable(FriendlyByteBuf::readUtf),
                             buf.readNullable(in -> new CharacterSkin(in.readNullable(FriendlyByteBuf::readUtf), in.readBoolean())),
-                            buf.readNullable(in -> in.readByteArray(CharacterSkin.MAX_IMAGE_BYTES))));
+                            readHash(buf)));
+        }
+    }
+
+    /** Length of a {@link CharacterSkin#hash}. */
+    private static final int HASH_LENGTH = 64;
+
+    /** A nullable skin hash, or {@code null} when it does not have the form of one. */
+    private static @Nullable String readHash(FriendlyByteBuf buf) {
+        String hash = buf.readNullable(in -> in.readUtf(HASH_LENGTH));
+        return hash != null && CharacterSkin.isHash(hash) ? hash : null;
+    }
+
+    /**
+     * Client to server, while playing: send the image of the imported skin with this hash, which a
+     * {@link PlayerCharacters} entry named. Each image is sent at most once per connection.
+     */
+    public record SkinRequest(String hash) implements CustomPacketPayload {
+
+        public static final Type<SkinRequest> TYPE = payloadType("skin_request");
+        public static final StreamCodec<FriendlyByteBuf, SkinRequest> STREAM_CODEC = StreamCodec.of(
+                (buf, payload) -> buf.writeUtf(payload.hash(), HASH_LENGTH),
+                buf -> new SkinRequest(buf.readUtf(HASH_LENGTH)));
+
+        @Override
+        public @NonNull Type<SkinRequest> type() {
+            return TYPE;
+        }
+    }
+
+    /** Server to client, while playing: the image asked for with a {@link SkinRequest}. */
+    public record SkinImage(String hash, byte[] image) implements CustomPacketPayload {
+
+        public static final Type<SkinImage> TYPE = payloadType("skin_image");
+        public static final StreamCodec<FriendlyByteBuf, SkinImage> STREAM_CODEC = StreamCodec.of(
+                (buf, payload) -> {
+                    buf.writeUtf(payload.hash(), HASH_LENGTH);
+                    buf.writeByteArray(payload.image());
+                },
+                buf -> new SkinImage(buf.readUtf(HASH_LENGTH), buf.readByteArray(CharacterSkin.MAX_IMAGE_BYTES)));
+
+        @Override
+        public @NonNull Type<SkinImage> type() {
+            return TYPE;
         }
     }
 
