@@ -8,6 +8,7 @@ import com.tunic.parallel.character.CharacterGamemode;
 import com.tunic.parallel.character.CharacterSwap;
 import com.tunic.parallel.config.ParallelPermissions;
 import com.tunic.parallel.config.ServerConfig;
+import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.fabricmc.fabric.api.networking.v1.ServerConfigurationConnectionEvents;
 import net.fabricmc.fabric.api.networking.v1.ServerConfigurationNetworking;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
@@ -28,7 +29,10 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -44,6 +48,8 @@ public final class CharacterSync {
 
     /** Players who have been asked for their character and have not answered yet. */
     private static final Set<UUID> ASKED = ConcurrentHashMap.newKeySet();
+    /** The character as last sent to each player, so later syncs only need to carry what changed. */
+    private static final Map<UUID, CharacterBundle> LAST_SENT = new ConcurrentHashMap<>();
 
     private static final Logger LOGGER = LoggerFactory.getLogger(ParallelPlayers.MOD_ID);
 
@@ -54,7 +60,12 @@ public final class CharacterSync {
         ServerConfigurationConnectionEvents.CONFIGURE.register(CharacterSync::onConfigure);
         ServerConfigurationConnectionEvents.DISCONNECT.register((listener, server) -> ASKED.remove(listener.getOwner().id()));
         ServerConfigurationNetworking.registerGlobalReceiver(CharacterPayloads.Upload.TYPE, CharacterSync::onUpload);
-        ServerPlayConnectionEvents.JOIN.register((handler, sender, server) -> shareCharacters(server, handler.getPlayer()));
+        ServerPlayConnectionEvents.JOIN.register((handler, sender, server) -> {
+            LAST_SENT.remove(handler.getPlayer().getUUID());
+            shareCharacters(server, handler.getPlayer());
+        });
+        ServerPlayConnectionEvents.DISCONNECT.register((handler, server) -> LAST_SENT.remove(handler.getPlayer().getUUID()));
+        ServerTickEvents.END_SERVER_TICK.register(CharacterSync::syncPeriodically);
         // Play-phase handlers run on the server thread.
         ServerPlayNetworking.registerGlobalReceiver(CharacterPayloads.Leave.TYPE, (payload, context) -> {
             CharacterSwap.saveBeforeLeaving(context.server(), context.player());
@@ -62,10 +73,41 @@ public final class CharacterSync {
         });
     }
 
-    /** Sends a character, as it was just saved, back to the player's client. */
+    /**
+     * Sends a character, as it was just saved, back to the player's client. After the first time only the
+     * parts that changed since are sent; the client keeps its copy of the rest.
+     */
     public static void send(ServerPlayer player, CharacterBundle character) {
-        if (ServerPlayNetworking.canSend(player, CharacterPayloads.Sync.TYPE)) {
-            ServerPlayNetworking.send(player, new CharacterPayloads.Sync(character));
+        if (!ServerPlayNetworking.canSend(player, CharacterPayloads.Sync.TYPE)) {
+            return;
+        }
+        CharacterBundle previous = LAST_SENT.put(player.getUUID(), character);
+        ServerPlayNetworking.send(player, new CharacterPayloads.Sync(previous == null ? character : changedSince(previous, character)));
+    }
+
+    private static CharacterBundle changedSince(CharacterBundle previous, CharacterBundle current) {
+        return new CharacterBundle(current.meta(),
+                Arrays.equals(previous.playerData(), current.playerData()) ? null : current.playerData(),
+                Arrays.equals(previous.appearance(), current.appearance()) ? null : current.appearance(),
+                Objects.equals(previous.stats(), current.stats()) ? null : current.stats(),
+                Objects.equals(previous.advancements(), current.advancements()) ? null : current.advancements(),
+                null);
+    }
+
+    /**
+     * Every {@link ServerConfig#syncIntervalSeconds}, saves the characters of players who joined from another
+     * computer and sends them over, so a crash or lost connection costs little. The singleplayer owner's
+     * character is saved straight into their own storage by the game's saves.
+     */
+    private static void syncPeriodically(MinecraftServer server) {
+        int interval = ServerConfig.get().syncIntervalSeconds;
+        if (interval <= 0 || server.getTickCount() % (interval * 20) != 0) {
+            return;
+        }
+        for (ServerPlayer player : server.getPlayerList().getPlayers()) {
+            if (CharacterSwap.session(player.nameAndId()).filter(CharacterSwap.Session::remote).isPresent()) {
+                CharacterSwap.saveNow(server, player);
+            }
         }
     }
 
@@ -137,7 +179,7 @@ public final class CharacterSync {
         CharacterGamemode worldGamemode = ServerConfig.get().enforceGamemodes && !ParallelPermissions.bypassesGamemodes(player)
                 ? CharacterGamemode.ofWorld(data.isHardcore(), data.getGameType(), data.isAllowCommands())
                 : null;
-        listener.addTask(new AskForCharacter(player.id(), worldGamemode));
+        listener.addTask(new AskForCharacter(player.id(), worldGamemode, CharacterSwap.worldId(server)));
     }
 
     @SuppressWarnings("resource")
@@ -150,18 +192,19 @@ public final class CharacterSync {
             if (!ASKED.remove(player.id())) {
                 return;
             }
-            CharacterSwap.Choice choice = CharacterSwap.choose(server, player, payload.character());
-            context.responseSender().sendPacket(new CharacterPayloads.Result(choice.playingAs(), choice.newer()));
+            CharacterSwap.Choice choice = CharacterSwap.choose(server, player, payload.character(), payload.synced());
+            context.responseSender().sendPacket(new CharacterPayloads.Result(choice.playingAs(), choice.newer(),
+                    choice.saveId(), choice.conflict()));
             listener.completeTask(TASK);
         });
     }
 
-    private record AskForCharacter(UUID player, @Nullable CharacterGamemode worldGamemode) implements ConfigurationTask {
+    private record AskForCharacter(UUID player, @Nullable CharacterGamemode worldGamemode, String worldId) implements ConfigurationTask {
 
         @Override
         public void start(@NonNull Consumer<Packet<?>> connection) {
             ASKED.add(this.player);
-            connection.accept(ServerConfigurationNetworking.createClientboundPacket(new CharacterPayloads.Request(this.worldGamemode)));
+            connection.accept(ServerConfigurationNetworking.createClientboundPacket(new CharacterPayloads.Request(this.worldGamemode, this.worldId)));
         }
 
         @Override

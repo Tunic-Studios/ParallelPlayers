@@ -57,13 +57,17 @@ public final class CharacterPayloads {
      *
      * @param worldGamemode the gamemode a character needs to join, or {@code null} when any character may
      *                      (gamemode rules are off, or the player may bypass them)
+     * @param worldId       identifies the server's world, for the client to remember what it synced there
      */
-    public record Request(@Nullable CharacterGamemode worldGamemode) implements CustomPacketPayload {
+    public record Request(@Nullable CharacterGamemode worldGamemode, String worldId) implements CustomPacketPayload {
 
         public static final Type<Request> TYPE = payloadType("request_character");
         public static final StreamCodec<FriendlyByteBuf, Request> STREAM_CODEC = StreamCodec.of(
-                (buf, payload) -> buf.writeNullable(payload.worldGamemode(), CharacterGamemode.STREAM_CODEC),
-                buf -> new Request(buf.readNullable(CharacterGamemode.STREAM_CODEC)));
+                (buf, payload) -> {
+                    buf.writeNullable(payload.worldGamemode(), CharacterGamemode.STREAM_CODEC);
+                    buf.writeUtf(payload.worldId(), 64);
+                },
+                buf -> new Request(buf.readNullable(CharacterGamemode.STREAM_CODEC), buf.readUtf(64)));
 
         @Override
         public @NonNull Type<Request> type() {
@@ -71,13 +75,20 @@ public final class CharacterPayloads {
         }
     }
 
-    /** Client to server, while connecting: the active character, or {@code null} to play as the account. */
-    public record Upload(@Nullable CharacterBundle character) implements CustomPacketPayload {
+    /**
+     * Client to server, while connecting: the active character, or {@code null} to play as the account.
+     *
+     * @param synced the save of the character last synced with this server, or {@code null} if never
+     */
+    public record Upload(@Nullable CharacterBundle character, @Nullable Long synced) implements CustomPacketPayload {
 
         public static final Type<Upload> TYPE = payloadType("upload_character");
         public static final StreamCodec<FriendlyByteBuf, Upload> STREAM_CODEC = StreamCodec.of(
-                (buf, payload) -> buf.writeNullable(payload.character(), CharacterBundle.STREAM_CODEC),
-                buf -> new Upload(buf.readNullable(CharacterBundle.STREAM_CODEC)));
+                (buf, payload) -> {
+                    buf.writeNullable(payload.character(), CharacterBundle.STREAM_CODEC);
+                    buf.writeNullable(payload.synced(), FriendlyByteBuf::writeLong);
+                },
+                buf -> new Upload(buf.readNullable(CharacterBundle.STREAM_CODEC), buf.readNullable(FriendlyByteBuf::readLong)));
 
         @Override
         public @NonNull Type<Upload> type() {
@@ -87,17 +98,24 @@ public final class CharacterPayloads {
 
     /**
      * Server to client, while connecting: the character the player plays as ({@code null} for the account),
-     * and the server's copy of it when that is newer than the one the client sent.
+     * and the server's copy of it when the client must take that over its own.
+     *
+     * @param saveId   the save client and server now agree on
+     * @param conflict whether the client's copy had changed too; it keeps that copy as a backup
      */
-    public record Result(@Nullable UUID playingAs, @Nullable CharacterBundle newer) implements CustomPacketPayload {
+    public record Result(@Nullable UUID playingAs, @Nullable CharacterBundle newer, long saveId, boolean conflict)
+            implements CustomPacketPayload {
 
         public static final Type<Result> TYPE = payloadType("character_result");
         public static final StreamCodec<FriendlyByteBuf, Result> STREAM_CODEC = StreamCodec.of(
                 (buf, payload) -> {
                     buf.writeNullable(payload.playingAs(), UUIDUtil.STREAM_CODEC);
                     buf.writeNullable(payload.newer(), CharacterBundle.STREAM_CODEC);
+                    buf.writeLong(payload.saveId());
+                    buf.writeBoolean(payload.conflict());
                 },
-                buf -> new Result(buf.readNullable(UUIDUtil.STREAM_CODEC), buf.readNullable(CharacterBundle.STREAM_CODEC)));
+                buf -> new Result(buf.readNullable(UUIDUtil.STREAM_CODEC), buf.readNullable(CharacterBundle.STREAM_CODEC),
+                        buf.readLong(), buf.readBoolean()));
 
         @Override
         public @NonNull Type<Result> type() {

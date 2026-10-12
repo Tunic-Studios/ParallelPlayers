@@ -18,12 +18,24 @@ public final class ServerConfig {
     /** Whether a character may only enter worlds of its own gamemode (survival, creative or hardcore). */
     public boolean enforceGamemodes = true;
 
+    /** Longest allowed {@link #syncIntervalSeconds}. */
+    public static final int MAX_SYNC_INTERVAL = 600;
+
+    /**
+     * How often, in seconds, the characters of players who joined from another computer are saved and sent
+     * back to their game, so a crash or lost connection costs at most this much play. 0 sends them only when
+     * the game saves and when the player leaves.
+     */
+    public int syncIntervalSeconds = 60;
+
     public static ServerConfig get() {
         return current;
     }
 
     public static void reload() {
-        current = ConfigFile.load(FILE, ServerConfig.class, ServerConfig::new);
+        ServerConfig loaded = ConfigFile.load(FILE, ServerConfig.class, ServerConfig::new);
+        loaded.syncIntervalSeconds = Math.clamp(loaded.syncIntervalSeconds, 0, MAX_SYNC_INTERVAL);
+        current = loaded;
     }
 
     /** Writes these settings to the file and makes them the current ones. */

@@ -105,12 +105,18 @@ public class ParallelPlayersLangProvider extends FabricLanguageProvider {
         builder.add("parallel.settings.backup_timing.world_save.tooltip", "Before every save, autosaves included. Gives the most restore points, but fills up the backup limit fastest.");
         builder.add("parallel.settings.backup_timing.game_launch", "Once per Launch");
         builder.add("parallel.settings.backup_timing.game_launch.tooltip", "The first time each character enters a world after starting the game.");
+        builder.add("parallel.settings.leave_wait", "Wait When Leaving");
+        builder.add("parallel.settings.leave_wait.tooltip", "When leaving a server or quitting the game while playing a character there, how long to wait for the server to send the character's last save before going anyway.");
         builder.add("parallel.settings.section.worlds", "Your Worlds");
         builder.add("parallel.settings.section.worlds.note", "Applies to your singleplayer worlds and LAN games you host. Servers have their own config/parallel/server.json.");
         builder.add("parallel.settings.characters_enabled", "Characters");
         builder.add("parallel.settings.characters_enabled.tooltip", "When off, every world uses its own player data, as it would without the mod.");
         builder.add("parallel.settings.enforce_gamemodes", "Gamemode Rules");
         builder.add("parallel.settings.enforce_gamemodes.tooltip", "Characters can only enter worlds of their own gamemode: survival, creative or hardcore.");
+        builder.add("parallel.settings.sync_interval", "Sync Interval");
+        builder.add("parallel.settings.sync_interval.tooltip", "How often the characters of players who joined from another computer are saved and sent back to their game, so a crash or lost connection costs at most this much play. Saves Only sends them when the game saves and when they leave.");
+        builder.add("parallel.settings.sync_interval.off", "Saves Only");
+        builder.add("parallel.settings.seconds", "%ss");
 
         // Leaving a server while playing a character
         builder.add("parallel.leaving.saving", "Saving your character...");

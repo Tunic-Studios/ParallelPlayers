@@ -3,6 +3,7 @@ package com.tunic.parallel.client;
 import com.tunic.parallel.ParallelPlayers;
 import com.tunic.parallel.character.CharacterBundle;
 import com.tunic.parallel.character.CharacterGamemode;
+import com.tunic.parallel.client.config.ClientConfig;
 import com.tunic.parallel.client.screen.CharactersScreen;
 import com.tunic.parallel.mixin.client.ClientCommonPacketListenerImplAccessor;
 import com.tunic.parallel.network.CharacterPayloads;
@@ -14,6 +15,7 @@ import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.GenericMessageScreen;
 import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.network.Connection;
 import net.minecraft.network.chat.Component;
 import org.jspecify.annotations.Nullable;
@@ -22,6 +24,7 @@ import org.slf4j.LoggerFactory;
 
 import java.util.Map;
 import java.util.Optional;
+import java.util.OptionalLong;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -33,11 +36,10 @@ public final class ClientCharacterSync {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(ParallelPlayers.MOD_ID);
 
-    /** How long to wait for the server's last save when leaving before disconnecting anyway. */
-    private static final long LEAVE_TIMEOUT_NANOS = 5_000_000_000L;
-
     /** The character played on the server this client is connected to, or {@code null} for the account. */
     private static volatile @Nullable UUID playingAs;
+    /** The world id of the server this client is connected to, once it has asked for a character. */
+    private static volatile @Nullable String serverWorld;
     /** The names of the characters other players on the connected server play as, by player. */
     private static final Map<UUID, String> ALIASES = new ConcurrentHashMap<>();
     /** The disconnect held back until the server's last save arrives; only touched on the client thread. */
@@ -59,11 +61,13 @@ public final class ClientCharacterSync {
         // A new connection starts as the account; a server with the mod says otherwise while connecting.
         ClientConfigurationConnectionEvents.INIT.register((listener, client) -> {
             playingAs = null;
+            serverWorld = null;
             ALIASES.clear();
             CharacterSkins.clearOtherPlayers();
         });
         ClientPlayConnectionEvents.DISCONNECT.register((listener, client) -> {
             playingAs = null;
+            serverWorld = null;
             pendingLeave = null;
             ALIASES.clear();
             // Textures are released on the client thread.
@@ -91,12 +95,27 @@ public final class ClientCharacterSync {
                 context.client().execute(() -> answerRequest(payload, context)));
         ClientConfigurationNetworking.registerGlobalReceiver(CharacterPayloads.Result.TYPE, (payload, context) ->
                 context.client().execute(() -> {
-                    playingAs = payload.playingAs();
+                    UUID character = payload.playingAs();
+                    playingAs = character;
+                    if (character == null) {
+                        return;
+                    }
+                    // Joining a server is entering a world, for the backup timing.
+                    backUp(character, true);
                     if (payload.newer() != null) {
+                        if (payload.conflict()) {
+                            keepConflictCopy(character);
+                        }
                         saveLocally(payload.newer());
                     }
+                    markSynced(character, payload.saveId());
                 }));
-        ClientPlayNetworking.registerGlobalReceiver(CharacterPayloads.Sync.TYPE, (payload, context) -> saveLocally(payload.character()));
+        ClientPlayNetworking.registerGlobalReceiver(CharacterPayloads.Sync.TYPE, (payload, context) -> {
+            UUID character = payload.character().meta().id();
+            backUp(character, false);
+            saveLocally(payload.character());
+            markSynced(character, payload.character().meta().saveId());
+        });
         ClientPlayNetworking.registerGlobalReceiver(CharacterPayloads.LeaveReady.TYPE, (payload, context) -> finishLeaving());
         ClientPlayNetworking.registerGlobalReceiver(CharacterPayloads.PlayerCharacters.TYPE, (payload, context) -> {
             for (CharacterPayloads.PlayerCharacters.Entry entry : payload.players()) {
@@ -124,10 +143,23 @@ public final class ClientCharacterSync {
             return pendingLeave != null && !leaving;
         }
         pendingLeave = disconnect;
-        leaveDeadline = System.nanoTime() + LEAVE_TIMEOUT_NANOS;
+        leaveDeadline = System.nanoTime() + ClientConfig.get().leaveWaitSeconds * 1_000_000_000L;
         ClientPlayNetworking.send(new CharacterPayloads.Leave());
         minecraft.gui.setScreen(new GenericMessageScreen(Component.translatable("parallel.leaving.saving")));
         return true;
+    }
+
+    /**
+     * Called when the game is about to close, its window closed or Quit Game chosen. While playing a character
+     * on a server, leaves it first the way the pause menu does, waiting for the last save.
+     *
+     * @return whether closing is being held back for now; the game asks again every frame until it may close
+     */
+    public static boolean holdQuit(Minecraft minecraft) {
+        return holdDisconnect(minecraft, () -> {
+            minecraft.disconnectFromWorld(ClientLevel.DEFAULT_QUIT_MESSAGE);
+            minecraft.stop();
+        });
     }
 
     private static void finishLeaving() {
@@ -160,9 +192,10 @@ public final class ClientCharacterSync {
      */
     @SuppressWarnings("resource")
     private static void answerRequest(CharacterPayloads.Request request, ClientConfigurationNetworking.Context context) {
+        serverWorld = request.worldId();
         CharacterGamemode world = request.worldGamemode();
         if (world == null || activeCanJoin(world)) {
-            context.responseSender().sendPacket(new CharacterPayloads.Upload(activeCharacter()));
+            context.responseSender().sendPacket(upload());
             return;
         }
         Minecraft minecraft = context.client();
@@ -173,7 +206,7 @@ public final class ClientCharacterSync {
                 () -> {
                     choosingFor = null;
                     minecraft.gui.setScreen(connecting);
-                    context.responseSender().sendPacket(new CharacterPayloads.Upload(activeCharacter()));
+                    context.responseSender().sendPacket(upload());
                 },
                 () -> {
                     choosingFor = null;
@@ -190,6 +223,38 @@ public final class ClientCharacterSync {
                 .orElse(true);
     }
 
+    /** The active character for the server, with the save it last synced there at. */
+    private static CharacterPayloads.Upload upload() {
+        CharacterBundle character = activeCharacter();
+        String world = serverWorld;
+        if (character == null || world == null) {
+            return new CharacterPayloads.Upload(character, null);
+        }
+        OptionalLong synced = ParallelPlayers.characters().syncedSaveId(character.meta().id(), world);
+        return new CharacterPayloads.Upload(character, synced.isPresent() ? synced.getAsLong() : null);
+    }
+
+    /** Records that this character and the connected server's copy of it are now the same, at this save. */
+    private static void markSynced(UUID character, long saveId) {
+        String world = serverWorld;
+        if (world == null) {
+            return;
+        }
+        try {
+            ParallelPlayers.characters().setSyncedSaveId(character, world, saveId);
+        } catch (RuntimeException e) {
+            LOGGER.error("Could not record the sync state of character {}", character, e);
+        }
+    }
+
+    private static void keepConflictCopy(UUID character) {
+        try {
+            ParallelPlayers.characters().keepConflictCopy(character);
+        } catch (RuntimeException e) {
+            LOGGER.error("Could not back up character {} before taking the server's copy", character, e);
+        }
+    }
+
     private static @Nullable CharacterBundle activeCharacter() {
         try {
             return ParallelPlayers.activeCharacter().get().flatMap(id -> ParallelPlayers.characters().export(id, true)).orElse(null);
@@ -199,9 +264,26 @@ public final class ClientCharacterSync {
         }
     }
 
+    /**
+     * Backs the local copy up as the backup timing asks, before a copy from the server replaces it.
+     *
+     * @param joining whether the character is entering the server, as opposed to receiving one of its saves
+     */
+    private static void backUp(UUID character, boolean joining) {
+        try {
+            if (joining) {
+                ParallelPlayers.characters().onEnterWorld(character);
+            } else {
+                ParallelPlayers.characters().beforeSave(character);
+            }
+        } catch (RuntimeException e) {
+            LOGGER.error("Could not back up character {}", character, e);
+        }
+    }
+
     private static void saveLocally(CharacterBundle character) {
         try {
-            ParallelPlayers.characters().importBundle(character, true);
+            ParallelPlayers.characters().importBundle(character, true, false);
         } catch (RuntimeException e) {
             LOGGER.error("Could not store character {} received from the server", character.meta().id(), e);
         }

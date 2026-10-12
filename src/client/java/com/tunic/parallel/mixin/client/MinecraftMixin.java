@@ -25,4 +25,15 @@ public abstract class MinecraftMixin {
             ci.cancel();
         }
     }
+
+    /**
+     * Closing the window or quitting the game while on a server: leave it the same way first, so the last
+     * save is not lost. The game calls this every frame while its window wants to close.
+     */
+    @Inject(method = "stop", at = @At("HEAD"), cancellable = true)
+    private void parallel$leaveServerFirst(CallbackInfo ci) {
+        if (ClientCharacterSync.holdQuit((Minecraft) (Object) this)) {
+            ci.cancel();
+        }
+    }
 }

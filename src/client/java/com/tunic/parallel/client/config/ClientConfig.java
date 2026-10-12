@@ -13,6 +13,8 @@ public final class ClientConfig {
     private static volatile ClientConfig current = new ClientConfig();
 
     public static final int MAX_BACKUP_LIMIT = 20;
+    /** Longest allowed {@link #leaveWaitSeconds}; well under the 15 seconds after which the game reports a stuck shutdown. */
+    public static final int MAX_LEAVE_WAIT = 10;
 
     /** Whether the paper doll on the character screens turns to look at the cursor. */
     public boolean dollFollowsCursor = true;
@@ -28,6 +30,12 @@ public final class ClientConfig {
 
     /** When characters are backed up: {@code ENTER_WORLD}, {@code WORLD_SAVE} or {@code GAME_LAUNCH}. */
     public BackupTiming backupTiming = BackupTiming.ENTER_WORLD;
+
+    /**
+     * When leaving a server or quitting the game while playing a character there, how many seconds to wait
+     * for the server's last save before going anyway, 1 to {@value #MAX_LEAVE_WAIT}.
+     */
+    public int leaveWaitSeconds = 5;
 
     public static ClientConfig get() {
         return current;
@@ -45,6 +53,7 @@ public final class ClientConfig {
 
     private void apply() {
         this.backupLimit = Math.clamp(this.backupLimit, 0, MAX_BACKUP_LIMIT);
+        this.leaveWaitSeconds = Math.clamp(this.leaveWaitSeconds, 1, MAX_LEAVE_WAIT);
         if (this.backupTiming == null) {
             // Missing, or a value the file should not have.
             this.backupTiming = BackupTiming.ENTER_WORLD;

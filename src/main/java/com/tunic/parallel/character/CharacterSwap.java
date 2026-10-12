@@ -27,6 +27,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.LongSupplier;
 
 /**
  * Swaps a player's data with the data of the character they play as.
@@ -72,10 +73,15 @@ public final class CharacterSwap {
     /**
      * The outcome of {@link #choose}: the character the player will play as, if any, and the server's copy of it
      * when that is newer than what the client sent.
+     *
+     * @param playingAs the character the player plays as, or {@code null} for the account
+     * @param newer     the server's copy, when the client must take it over its own
+     * @param saveId    the save client and server agree on from now on
+     * @param conflict  whether both copies had changed; the client then keeps its own as a backup
      */
-    public record Choice(@Nullable UUID playingAs, @Nullable CharacterBundle newer) {
+    public record Choice(@Nullable UUID playingAs, @Nullable CharacterBundle newer, long saveId, boolean conflict) {
 
-        public static final Choice ACCOUNT = new Choice(null, null);
+        public static final Choice ACCOUNT = new Choice(null, null, 0L, false);
     }
 
     /**
@@ -85,6 +91,12 @@ public final class CharacterSwap {
     private static final Map<UUID, Session> PLAYING = new ConcurrentHashMap<>();
     /** Characters chosen by connecting players, by player id, until the player leaves. */
     private static final Map<UUID, Session> CHOSEN = new ConcurrentHashMap<>();
+    /**
+     * Players whose client already has their character's final save, from the leave handshake. The save
+     * vanilla makes as they disconnect is skipped: it would give the server's copy a save the client never
+     * receives, and the next join would see both copies as changed.
+     */
+    private static final Set<UUID> LEFT_SYNCED = ConcurrentHashMap.newKeySet();
     /** The server's character storage for each player, by player id. */
     private static final Map<UUID, CharacterStorage> SERVER_STORAGES = new ConcurrentHashMap<>();
     private static @Nullable String worldId;
@@ -182,35 +194,97 @@ public final class CharacterSwap {
     }
 
     /**
-     * Takes the character a connecting player's client sent, before the player's data is loaded. The server's
-     * copy is replaced by it, unless the server's copy was saved later: then the client missed the last save
-     * (it left or crashed before the save reached it), and the server's copy is kept and sent back.
+     * Takes the character a connecting player's client sent, before the player's data is loaded, and decides
+     * between it and the server's copy without asking the player. Both copies were the same at the save
+     * they last synced at; whichever changed since then wins:
+     * <ul>
+     *   <li>only the client's (it was played elsewhere, or not at all): the client's replaces the server's,</li>
+     *   <li>only the server's (the client left or crashed before the last save reached it): the server's is
+     *       kept and sent back,</li>
+     *   <li>both, or there is no record of syncing with this server: the copy played for longer wins, and the
+     *       other is kept as a backup on its own side.</li>
+     * </ul>
+     * Saves are told apart by random ids, not times, so the clocks of the client and the server do not matter.
      *
      * @param upload the client's active character, or {@code null} to play as the account
+     * @param synced the save the client last synced with this server at, or {@code null} if never
      */
-    public static Choice choose(MinecraftServer server, NameAndId player, @Nullable CharacterBundle upload) {
+    public static Choice choose(MinecraftServer server, NameAndId player, @Nullable CharacterBundle upload, @Nullable Long synced) {
         CHOSEN.remove(player.id());
         if (upload == null || mustPlayAsAccount(player)) {
             return Choice.ACCOUNT;
         }
         UUID id = upload.meta().id();
         CharacterStorage storage = serverStorage(server, player.id());
-        CharacterBundle newer = null;
         try {
-            Optional<CharacterMeta> ours = storage.get(id);
-            if (ours.isPresent() && ours.get().savedAt() > upload.meta().savedAt()) {
+            CharacterMeta ours = storage.get(id).orElse(null);
+            long theirs = upload.meta().saveId();
+            Winner winner = decide(ours == null ? null : ours.saveId(), theirs, synced,
+                    () -> storage.playTimeTicks(id), () -> CharacterStorage.playTimeTicks(upload.stats()));
+            if (winner == Winner.SERVER) {
                 LOGGER.info("{}'s character {} is newer on this server than on their client, sending it back", player.name(), id);
-                storage.importIdentity(upload);
-                newer = storage.export(id, false).orElse(null);
-            } else {
-                storage.importBundle(upload, false);
+            } else if (winner.conflict) {
+                LOGGER.info("{}'s character {} changed both here and on their client; keeping the {} copy, the other is backed up",
+                        player.name(), id, winner == Winner.SERVER_CONFLICT ? "server's" : "client's");
             }
+            Choice choice;
+            if (ours != null && winner.server) {
+                storage.importIdentity(upload);
+                CharacterBundle newer = storage.export(id, false).orElse(null);
+                choice = new Choice(id, newer, ours.saveId(), winner.conflict && newer != null);
+            } else {
+                if (winner.conflict) {
+                    storage.keepConflictCopy(id);
+                }
+                storage.importBundle(upload, false, true);
+                choice = new Choice(id, null, theirs, false);
+            }
+            CHOSEN.put(player.id(), new Session(storage, id, true));
+            return choice;
         } catch (RuntimeException e) {
             LOGGER.error("Could not store {}'s character {}, they play as their account", player.name(), id, e);
             return Choice.ACCOUNT;
         }
-        CHOSEN.put(player.id(), new Session(storage, id, true));
-        return new Choice(id, newer);
+    }
+
+    /** Which copy of a character {@link #choose} keeps. */
+    enum Winner {
+        CLIENT(false, false),
+        SERVER(true, false),
+        CLIENT_CONFLICT(false, true),
+        SERVER_CONFLICT(true, true);
+
+        final boolean server;
+        /** Both copies had changed, so the losing one is kept as a backup. */
+        final boolean conflict;
+
+        Winner(boolean server, boolean conflict) {
+            this.server = server;
+            this.conflict = conflict;
+        }
+    }
+
+    /**
+     * The decision behind {@link #choose}, on save ids alone.
+     *
+     * @param ours        the server copy's save, or {@code null} if the server has no copy
+     * @param theirs      the client copy's save
+     * @param synced      the save the client last synced with this server at, or {@code null} if never
+     * @param serverTicks the server copy's play time; only asked for on a conflict
+     * @param clientTicks the client copy's play time; only asked for on a conflict
+     */
+    static Winner decide(@Nullable Long ours, long theirs, @Nullable Long synced, LongSupplier serverTicks, LongSupplier clientTicks) {
+        // The same save on both sides is the same copy, whatever the client remembers.
+        boolean serverChanged = ours != null && ours != theirs && !ours.equals(synced);
+        boolean clientChanged = synced == null || theirs != synced;
+        if (!serverChanged) {
+            return Winner.CLIENT;
+        }
+        if (!clientChanged) {
+            return Winner.SERVER;
+        }
+        // Both copies started out the same, so the one with more play time was played more since.
+        return serverTicks.getAsLong() >= clientTicks.getAsLong() ? Winner.SERVER_CONFLICT : Winner.CLIENT_CONFLICT;
     }
 
     /** Who the player is playing as on this server, or empty when they play as their account. */
@@ -222,12 +296,14 @@ public final class CharacterSwap {
     public static void onLeave(ServerPlayer player) {
         PLAYING.remove(player.getUUID());
         CHOSEN.remove(player.getUUID());
+        LEFT_SYNCED.remove(player.getUUID());
     }
 
     /** Forgets everything about the server that is stopping; in singleplayer the next world is another server. */
     public static void onServerStopped() {
         PLAYING.clear();
         CHOSEN.clear();
+        LEFT_SYNCED.clear();
         SERVER_STORAGES.clear();
         worldId = null;
     }
@@ -258,6 +334,9 @@ public final class CharacterSwap {
             } catch (IOException e) {
                 LOGGER.warn("Could not remove {}", file, e);
             }
+            return;
+        }
+        if (LEFT_SYNCED.contains(player.getUUID())) {
             return;
         }
         UUID id = session.character();
@@ -314,7 +393,22 @@ public final class CharacterSwap {
      * about to disconnect. Statistics and advancements are written first, since they travel with it.
      */
     public static void saveBeforeLeaving(MinecraftServer server, ServerPlayer player) {
-        if (!PLAYING.containsKey(player.getUUID())) {
+        Session session = PLAYING.get(player.getUUID());
+        if (session == null) {
+            return;
+        }
+        saveNow(server, player);
+        if (session.remote()) {
+            LEFT_SYNCED.add(player.getUUID());
+        }
+    }
+
+    /**
+     * Saves the player's character now, statistics and advancements included, and sends it to their client
+     * if they joined from another computer. Nothing happens once their last save before leaving went out.
+     */
+    public static void saveNow(MinecraftServer server, ServerPlayer player) {
+        if (!PLAYING.containsKey(player.getUUID()) || LEFT_SYNCED.contains(player.getUUID())) {
             return;
         }
         server.getPlayerList().getPlayerStats(player).save();
@@ -378,7 +472,7 @@ public final class CharacterSwap {
      * needed and kept in the world folder: folder names repeat (every server's is "world"), this does not, and
      * it stays the same when the world is renamed.
      */
-    private static synchronized String worldId(MinecraftServer server) {
+    public static synchronized String worldId(MinecraftServer server) {
         String known = worldId;
         if (known != null) {
             return known;

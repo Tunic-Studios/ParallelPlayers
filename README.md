@@ -44,20 +44,15 @@ singleplayer worlds and on servers that have the mod installed.
 ### Character backups
 - Each character's player data is backed up automatically, keeping up to 5 copies by default, this is customizable!
 
-### Servers and LAN (experimental)
+### Servers and LAN
 - On a server that has the mod, your active character comes with you. Players without the mod join as
   their account.
-- The server keeps its own copy of each player's characters and sends every save back to the client.
-  Leaving from the pause menu waits for the last save, so the progress is there in singleplayer too.
-- If the server's copy is newer than yours (for example, the game closed before the last save arrived),
-  the server's copy is used and sent back to you.
-- If your active character can't join the server's kind of world, you pick another one while connecting.
-- Other players with the mod see your character's name above your head and its skin.
 
 ### Settings and permissions
 - A settings screen, opened from [Mod Menu](https://modrinth.com/mod/modmenu) with various options to customize parallel players.
 - Settings are kept in `config/parallel/client.json` and `config/parallel/server.json`.
-- Servers can turn characters or gamemode rules off in `server.json`, and control who may use them with a
+- Servers can turn characters or gamemode rules off and set how often characters sync (`syncIntervalSeconds`)
+  in `server.json`, and control who may use them with a
   permissions mod such as [LuckPerms](https://luckperms.net/):
 
   | Permission                    | Default  | Allows                                              |

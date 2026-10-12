@@ -16,6 +16,8 @@ import net.minecraft.network.chat.Component;
 import org.jspecify.annotations.Nullable;
 
 import java.util.function.Consumer;
+import java.util.function.IntConsumer;
+import java.util.function.IntFunction;
 
 /**
  * The mod's settings, opened from Mod Menu: vanilla's scrolling two-column options list, like the game's
@@ -52,13 +54,16 @@ public class SettingsScreen extends OptionsSubScreen {
                         value -> this.client.dollShowsItems = value));
 
         this.list.addHeader(Component.translatable("parallel.settings.section.characters"));
-        this.list.addSmall(new BackupLimitSlider(),
+        this.list.addSmall(new IntSlider("parallel.settings.backup_limit", null, 0, ClientConfig.MAX_BACKUP_LIMIT, 1,
+                        this.client.backupLimit, SettingsScreen::countOrOff, value -> this.client.backupLimit = value),
                 CycleButton.builder(timing -> Component.translatable(timing.translationKey()),
                                 this.client.backupTiming == null ? BackupTiming.ENTER_WORLD : this.client.backupTiming)
                         .withValues(BackupTiming.values())
                         .withTooltip(timing -> Tooltip.create(Component.translatable(timing.translationKey() + ".tooltip")))
                         .create(0, 0, BUTTON_WIDTH, 20, Component.translatable("parallel.settings.backup_timing"),
                                 (_, timing) -> this.client.backupTiming = timing));
+        this.list.addSmall(new IntSlider("parallel.settings.leave_wait", null, 1, ClientConfig.MAX_LEAVE_WAIT, 1,
+                this.client.leaveWaitSeconds, SettingsScreen::seconds, value -> this.client.leaveWaitSeconds = value), null);
 
         this.list.addHeader(Component.translatable("parallel.settings.section.worlds"));
         Component note = Component.translatable("parallel.settings.section.worlds.note");
@@ -67,6 +72,10 @@ public class SettingsScreen extends OptionsSubScreen {
                         value -> this.server.charactersEnabled = value),
                 this.toggle("parallel.settings.enforce_gamemodes", note, this.server.enforceGamemodes,
                         value -> this.server.enforceGamemodes = value));
+        this.list.addSmall(new IntSlider("parallel.settings.sync_interval", note, 0, ServerConfig.MAX_SYNC_INTERVAL, 10,
+                this.server.syncIntervalSeconds,
+                value -> value == 0 ? Component.translatable("parallel.settings.sync_interval.off") : seconds(value),
+                value -> this.server.syncIntervalSeconds = value), null);
     }
 
     @Override
@@ -81,40 +90,67 @@ public class SettingsScreen extends OptionsSubScreen {
      * in grey if there is one.
      */
     private CycleButton<Boolean> toggle(String key, @Nullable Component note, boolean value, Consumer<Boolean> onChange) {
-        Component text = Component.translatable(key + ".tooltip");
-        if (note != null) {
-            text = text.copy().append("\n\n").append(note.copy().withStyle(ChatFormatting.GRAY));
-        }
-        Tooltip tooltip = Tooltip.create(text);
+        Tooltip tooltip = tooltip(key, note);
         return CycleButton.onOffBuilder(value)
                 .withTooltip(ignored -> tooltip)
                 .create(0, 0, BUTTON_WIDTH, 20, Component.translatable(key), (_, newValue) -> onChange.accept(newValue));
     }
 
-    /** Backups kept per character, from none to {@link ClientConfig#MAX_BACKUP_LIMIT}. */
-    private class BackupLimitSlider extends AbstractSliderButton {
+    /** The translation of {@code key + ".tooltip"}, followed by {@code note} in grey if there is one. */
+    private static Tooltip tooltip(String key, @Nullable Component note) {
+        Component text = Component.translatable(key + ".tooltip");
+        if (note != null) {
+            text = text.copy().append("\n\n").append(note.copy().withStyle(ChatFormatting.GRAY));
+        }
+        return Tooltip.create(text);
+    }
 
-        BackupLimitSlider() {
-            super(0, 0, BUTTON_WIDTH, 20, Component.empty(),
-                    Math.clamp((double) SettingsScreen.this.client.backupLimit / ClientConfig.MAX_BACKUP_LIMIT, 0.0, 1.0));
-            this.setTooltip(Tooltip.create(Component.translatable("parallel.settings.backup_limit.tooltip")));
+    private static Component countOrOff(int count) {
+        return count == 0 ? CommonComponents.OPTION_OFF : Component.literal(Integer.toString(count));
+    }
+
+    private static Component seconds(int seconds) {
+        return Component.translatable("parallel.settings.seconds", seconds);
+    }
+
+    /** A slider over whole numbers from {@code min} to {@code max} in steps of {@code step}. */
+    private static class IntSlider extends AbstractSliderButton {
+
+        private final String key;
+        private final int min;
+        private final int max;
+        private final int step;
+        private final IntFunction<Component> format;
+        private final IntConsumer onChange;
+
+        /** Its tooltip is the translation of {@code key + ".tooltip"}, followed by {@code note} if there is one. */
+        IntSlider(String key, @Nullable Component note, int min, int max, int step, int value,
+                  IntFunction<Component> format, IntConsumer onChange) {
+            super(0, 0, BUTTON_WIDTH, 20, Component.empty(), Math.clamp((double) (value - min) / (max - min), 0.0, 1.0));
+            this.key = key;
+            this.min = min;
+            this.max = max;
+            this.step = step;
+            this.format = format;
+            this.onChange = onChange;
+            this.setTooltip(tooltip(key, note));
             this.updateMessage();
         }
 
-        private int limit() {
-            return (int) Math.round(this.value * ClientConfig.MAX_BACKUP_LIMIT);
+        private int intValue() {
+            int raw = this.min + (int) Math.round(this.value * (this.max - this.min));
+            int stepped = Math.round((float) raw / this.step) * this.step;
+            return Math.clamp(stepped, this.min, this.max);
         }
 
         @Override
         protected void updateMessage() {
-            int limit = this.limit();
-            Component value = limit == 0 ? CommonComponents.OPTION_OFF : Component.literal(Integer.toString(limit));
-            this.setMessage(CommonComponents.optionNameValue(Component.translatable("parallel.settings.backup_limit"), value));
+            this.setMessage(CommonComponents.optionNameValue(Component.translatable(this.key), this.format.apply(this.intValue())));
         }
 
         @Override
         protected void applyValue() {
-            SettingsScreen.this.client.backupLimit = this.limit();
+            this.onChange.accept(this.intValue());
         }
     }
 }

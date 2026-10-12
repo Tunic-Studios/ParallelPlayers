@@ -3,6 +3,7 @@ package com.tunic.parallel.character;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
 import com.google.gson.JsonParseException;
 import com.google.gson.JsonParser;
 import org.jspecify.annotations.Nullable;
@@ -18,6 +19,7 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.stream.Stream;
 
 /**
@@ -32,7 +34,9 @@ import java.util.stream.Stream;
  *     skin.png         imported skin image, when the character uses a custom skin
  *     stats.json       statistics, read and written by vanilla's stats counter
  *     advancements.json  advancement progress, read and written by vanilla
- *     backup/          previous playerdata.dat copies, the newest {@link #setBackupLimit limit} of them
+ *     backup/          previous playerdata.dat copies, the newest {@link #setBackupLimit limit} of them, plus
+ *                      every copy that lost a sync conflict ({@link #keepConflictCopy}), which are never pruned
+ *     synced.json      client only: the save last synced with each server ({@link #syncedSaveId})
  * </pre>
  */
 public final class CharacterStorage {
@@ -47,6 +51,9 @@ public final class CharacterStorage {
     static final String STATS_FILE = "stats.json";
     static final String ADVANCEMENTS_FILE = "advancements.json";
     static final String BACKUP_DIR = "backup";
+    static final String SYNCED_FILE = "synced.json";
+    /** Name prefix of backups kept after losing a sync conflict; the newest-n pruning leaves them alone. */
+    static final String CONFLICT_PREFIX = "conflict-";
     public static final int DEFAULT_BACKUP_LIMIT = 5;
 
     private final Path root;
@@ -197,9 +204,66 @@ public final class CharacterStorage {
         }
     }
 
-    /** Records that the character's player data was saved just now; see {@link CharacterMeta#savedAt()}. */
+    /** Records that the character's player data was saved again; see {@link CharacterMeta#saveId()}. */
     public void markSaved(UUID id) {
-        writeMeta(require(id).withSavedAt(System.currentTimeMillis()));
+        CharacterMeta meta = require(id);
+        writeMeta(meta.withSaveId(ThreadLocalRandom.current().nextLong()));
+    }
+
+    /**
+     * The {@linkplain CharacterMeta#saveId() save} of the character that this client and a server last agreed
+     * on: the server's copy as it was last received from it, or this copy as the server last accepted it.
+     *
+     * @param world the server's world id
+     * @return empty if the character has never been synced with that server
+     */
+    public OptionalLong syncedSaveId(UUID id, String world) {
+        JsonObject synced = readSynced(id);
+        JsonElement saveId = synced.get(world);
+        return saveId != null && saveId.isJsonPrimitive() ? OptionalLong.of(saveId.getAsLong()) : OptionalLong.empty();
+    }
+
+    /** Records the save this client and a server now agree on; see {@link #syncedSaveId}. */
+    public void setSyncedSaveId(UUID id, String world, long saveId) {
+        JsonObject synced = readSynced(id);
+        synced.addProperty(world, saveId);
+        try {
+            writeAtomically(dir(id).resolve(SYNCED_FILE), GSON.toJson(synced).getBytes(StandardCharsets.UTF_8));
+        } catch (IOException e) {
+            throw new UncheckedIOException("Failed to record the sync state of character " + id, e);
+        }
+    }
+
+    private JsonObject readSynced(UUID id) {
+        Path file = dir(id).resolve(SYNCED_FILE);
+        if (!Files.isRegularFile(file)) {
+            return new JsonObject();
+        }
+        try {
+            JsonElement root = JsonParser.parseString(Files.readString(file, StandardCharsets.UTF_8));
+            return root.isJsonObject() ? root.getAsJsonObject() : new JsonObject();
+        } catch (IOException | RuntimeException e) {
+            LOGGER.warn("Ignoring unreadable sync state in {}", file, e);
+            return new JsonObject();
+        }
+    }
+
+    /**
+     * Keeps the character's current player data as a backup that is never pruned, before a copy from
+     * elsewhere replaces it after both had changed.
+     */
+    public void keepConflictCopy(UUID id) {
+        Path file = dir(id).resolve(DATA_FILE);
+        if (!Files.isRegularFile(file)) {
+            return;
+        }
+        try {
+            Path backups = dir(id).resolve(BACKUP_DIR);
+            Files.createDirectories(backups);
+            Files.copy(file, unusedBackupName(backups, CONFLICT_PREFIX));
+        } catch (IOException e) {
+            throw new UncheckedIOException("Failed to keep the conflicting copy of character " + id, e);
+        }
     }
 
     /**
@@ -221,7 +285,7 @@ public final class CharacterStorage {
         CharacterMeta from = incoming.meta();
         CharacterMeta local = require(from.id());
         writeMeta(new CharacterMeta(local.id(), sanitizeName(from.name()), local.createdAt(), local.lastPlayedAt(),
-                from.skin(), from.slim(), local.gamemode(), local.savedAt()));
+                from.skin(), from.slim(), local.gamemode(), local.saveId()));
         importSkinImage(incoming);
     }
 
@@ -240,13 +304,14 @@ public final class CharacterStorage {
     }
 
     /**
-     * Stores a character received from the other side, replacing this copy. The current player data is backed
-     * up first. Parts the bundle does not have are left as they are.
+     * Stores a character received from the other side, replacing this copy. Parts the bundle does not have
+     * are left as they are.
      *
      * @param keepIdentity keep this copy's name, skin and creation time: the client passes {@code true}, since
      *                     those are only ever changed in its own menus while the server's copy may be older
+     * @param backupFirst  back up the current player data first
      */
-    public void importBundle(CharacterBundle bundle, boolean keepIdentity) {
+    public void importBundle(CharacterBundle bundle, boolean keepIdentity, boolean backupFirst) {
         CharacterMeta incoming = bundle.meta();
         UUID id = incoming.id();
         Optional<CharacterMeta> existing = get(id);
@@ -254,10 +319,12 @@ public final class CharacterStorage {
         if (keepIdentity && existing.isPresent()) {
             CharacterMeta local = existing.get();
             meta = new CharacterMeta(id, local.name(), local.createdAt(), incoming.lastPlayedAt(),
-                    local.skin(), local.slim(), local.gamemode(), incoming.savedAt());
+                    local.skin(), local.slim(), local.gamemode(), incoming.saveId());
         }
         writeMeta(meta);
-        backupPlayerData(id);
+        if (backupFirst) {
+            backupPlayerData(id);
+        }
         try {
             if (bundle.playerData() != null) {
                 writeAtomically(dir(id).resolve(DATA_FILE), bundle.playerData());
@@ -345,17 +412,30 @@ public final class CharacterStorage {
         List<Path> existing;
         try (Stream<Path> old = Files.list(backups)) {
             // Newest first: the names are the times the backups were made.
-            existing = old.sorted(Comparator.comparing((Path p) -> p.getFileName().toString()).reversed()).toList();
+            existing = old.filter(p -> !p.getFileName().toString().startsWith(CONFLICT_PREFIX)).sorted(Comparator.comparing((Path p) -> p.getFileName().toString()).reversed()).toList();
         }
         List<Path> kept = new ArrayList<>(existing);
         if (limit > 0 && (existing.isEmpty() || Files.mismatch(existing.getFirst(), file) != -1L)) {
-            Path copy = backups.resolve(System.currentTimeMillis() + ".dat");
-            Files.copy(file, copy, StandardCopyOption.REPLACE_EXISTING);
+            Path copy = unusedBackupName(backups, "");
+            Files.copy(file, copy);
             kept.addFirst(copy);
         }
         for (Path p : kept.stream().skip(limit).toList()) {
             Files.deleteIfExists(p);
         }
+    }
+
+    /**
+     * A backup file named after the current time, or a moment later if two backups are made in the same
+     * millisecond, so neither replaces the other. The names still sort by age.
+     */
+    private static Path unusedBackupName(Path backups, String prefix) {
+        long time = System.currentTimeMillis();
+        Path file = backups.resolve(prefix + time + ".dat");
+        while (Files.exists(file)) {
+            file = backups.resolve(prefix + ++time + ".dat");
+        }
+        return file;
     }
 
     /**
@@ -378,13 +458,29 @@ public final class CharacterStorage {
             return 0L;
         }
         try {
-            JsonElement root = JsonParser.parseString(Files.readString(file, StandardCharsets.UTF_8));
+            return playTimeTicks(Files.readString(file, StandardCharsets.UTF_8));
+        } catch (IOException e) {
+            return 0L;
+        }
+    }
+
+    /**
+     * The play-time statistic in the contents of a vanilla stats file, in ticks.
+     *
+     * @return 0 if there is none or it cannot be read
+     */
+    public static long playTimeTicks(@Nullable String json) {
+        if (json == null) {
+            return 0L;
+        }
+        try {
+            JsonElement root = JsonParser.parseString(json);
             JsonElement time = root.getAsJsonObject()
                     .getAsJsonObject("stats")
                     .getAsJsonObject("minecraft:custom")
                     .get("minecraft:play_time");
             return time == null ? 0L : time.getAsLong();
-        } catch (IOException | RuntimeException e) {
+        } catch (RuntimeException e) {
             // A missing section (NullPointerException from the chain), wrong types or bad JSON all mean "unknown".
             return 0L;
         }
