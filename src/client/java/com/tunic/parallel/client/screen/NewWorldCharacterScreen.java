@@ -1,8 +1,8 @@
 package com.tunic.parallel.client.screen;
 
 import com.tunic.parallel.ParallelPlayers;
-import com.tunic.parallel.character.CharacterMeta;
 import com.tunic.parallel.character.CharacterGamemode;
+import com.tunic.parallel.character.CharacterMeta;
 import com.tunic.parallel.client.CharacterSkins;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.MultiLineTextWidget;

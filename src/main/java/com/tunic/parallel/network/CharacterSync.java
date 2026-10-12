@@ -1,11 +1,7 @@
 package com.tunic.parallel.network;
 
 import com.tunic.parallel.ParallelPlayers;
-import com.tunic.parallel.character.CharacterBundle;
-import com.tunic.parallel.character.CharacterMeta;
-import com.tunic.parallel.character.CharacterSkin;
-import com.tunic.parallel.character.CharacterGamemode;
-import com.tunic.parallel.character.CharacterSwap;
+import com.tunic.parallel.character.*;
 import com.tunic.parallel.config.ParallelPermissions;
 import com.tunic.parallel.config.ServerConfig;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
@@ -26,13 +22,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.UncheckedIOException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
-import java.util.UUID;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
 

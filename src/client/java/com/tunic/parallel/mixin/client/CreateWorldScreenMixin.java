@@ -2,8 +2,8 @@ package com.tunic.parallel.mixin.client;
 
 import com.tunic.parallel.character.CharacterGamemode;
 import com.tunic.parallel.character.CharacterRules;
-import com.tunic.parallel.config.ServerConfig;
 import com.tunic.parallel.client.screen.NewWorldCharacterScreen;
+import com.tunic.parallel.config.ServerConfig;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.worldselection.CreateWorldScreen;

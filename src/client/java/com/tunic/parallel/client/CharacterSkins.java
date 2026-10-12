@@ -2,12 +2,12 @@ package com.tunic.parallel.client;
 
 import com.mojang.blaze3d.platform.NativeImage;
 import com.tunic.parallel.ParallelPlayers;
-import com.tunic.parallel.config.ServerConfig;
 import com.tunic.parallel.character.CharacterMeta;
 import com.tunic.parallel.character.CharacterSkin;
+import com.tunic.parallel.config.ServerConfig;
+import com.tunic.parallel.mixin.client.SkinTextureDownloaderAccessor;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.texture.DynamicTexture;
-import com.tunic.parallel.mixin.client.SkinTextureDownloaderAccessor;
 import net.minecraft.core.ClientAsset;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
@@ -20,11 +20,7 @@ import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
-import java.util.UUID;
+import java.util.*;
 
 /**
  * Turns a character's {@link CharacterSkin} choice into the {@link PlayerSkin} the game renders with.

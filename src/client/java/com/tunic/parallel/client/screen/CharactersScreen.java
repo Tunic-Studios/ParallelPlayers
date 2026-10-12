@@ -1,9 +1,9 @@
 package com.tunic.parallel.client.screen;
 
 import com.tunic.parallel.ParallelPlayers;
+import com.tunic.parallel.character.CharacterGamemode;
 import com.tunic.parallel.character.CharacterLoadout;
 import com.tunic.parallel.character.CharacterMeta;
-import com.tunic.parallel.character.CharacterGamemode;
 import com.tunic.parallel.character.CharacterStorage;
 import com.tunic.parallel.client.CharacterSkins;
 import net.minecraft.ChatFormatting;
@@ -34,11 +34,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.text.DateFormat;
-import java.util.ArrayList;
-import java.util.Date;
-import java.util.List;
-import java.util.Optional;
-import java.util.UUID;
+import java.util.*;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
 
