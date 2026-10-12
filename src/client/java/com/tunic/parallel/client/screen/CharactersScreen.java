@@ -49,7 +49,7 @@ public class CharactersScreen extends Screen {
     private static final int DISABLED_COLOR = 0xFF555555;
     private static final int PLAYTIME_COLOR = 0xFF555555;
     private static final int DISABLED_ICON_TINT = 0xFF606060;
-    private static final int GAMEMODE_ICON_SIZE = 8;
+    private static final int GAMEMODE_ICON_SIZE = 9;
     private static final int GAMEMODE_ICON_GAP = 3;
 
     private final Screen parent;
