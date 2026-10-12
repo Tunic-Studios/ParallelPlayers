@@ -28,12 +28,12 @@ public class ParallelPlayersLangProvider extends FabricLanguageProvider {
         builder.add("parallel.characters.last_played", "Last played: %s");
         builder.add("parallel.characters.playtime", "%s");
         builder.add("parallel.characters.playtime.short", "Less than a minute");
-        builder.add("parallel.characters.empty", "No characters yet. Create one to get started.");
+        builder.add("parallel.characters.empty", "No characters yet, create one to get started!");
         builder.add("parallel.characters.playing_as", "Playing as %s");
         builder.add("parallel.characters.account", "Account");
 
         // Delete confirmation
-        builder.add("parallel.characters.delete.title", "Delete this character?");
+        builder.add("parallel.characters.delete.title", "Are you sure you want to delete this character?");
         builder.add("parallel.characters.delete.message", "\"%s\" and all of its data will be permanently lost.");
 
         // Name prompt (create and rename)
@@ -56,20 +56,20 @@ public class ParallelPlayersLangProvider extends FabricLanguageProvider {
         builder.add("parallel.skin.model.slim", "Slim");
         builder.add("parallel.skin.imported", "Imported %s");
         builder.add("parallel.skin.using_account", "Using your account's skin. Pick a default skin or import a 64x64 PNG.");
-        builder.add("parallel.skin.error.too_large", "Skins can be at most 24 KB, the same as on minecraft.net");
-        builder.add("parallel.skin.error.not_png", "That file is not a PNG image");
-        builder.add("parallel.skin.error.wrong_size", "Skins must be 64x64 or 64x32 pixels");
-        builder.add("parallel.skin.error.read", "Could not read that file");
+        builder.add("parallel.skin.error.too_large", "Skins can be at most 24 KB.");
+        builder.add("parallel.skin.error.not_png", "The provided file is not a PNG.");
+        builder.add("parallel.skin.error.wrong_size", "Skins must be 64x64 or 64x32 pixels.");
+        builder.add("parallel.skin.error.read", "Could not read the provided file.");
 
         // Character gamemodes
         builder.add("parallel.gamemode.label", "Gamemode");
         builder.add("parallel.gamemode.survival", "Survival");
         builder.add("parallel.gamemode.creative", "Creative");
         builder.add("parallel.gamemode.hardcore", "Hardcore");
-        builder.add("parallel.gamemode.survival.description", "Can only join survival worlds with cheats off.");
+        builder.add("parallel.gamemode.survival.description", "Can only join survival worlds with cheats disabled.");
         builder.add("parallel.gamemode.creative.description", "Can only join worlds that are Creative or have cheats enabled.");
         builder.add("parallel.gamemode.hardcore.description", "Can only join hardcore worlds.");
-        builder.add("parallel.gamemode.locked", "The gamemode cannot be changed after the character is created.");
+        builder.add("parallel.gamemode.locked", "Gamemodes cannot be changed after the character is created.");
         builder.add("parallel.gamemode.blocked.title", "Wrong character for this world");
         builder.add("parallel.gamemode.blocked.message", "%s is a %s character, but this is a %s world.");
         builder.add("parallel.gamemode.blocked.suggest", "Characters that can join: %s");
@@ -92,11 +92,11 @@ public class ParallelPlayersLangProvider extends FabricLanguageProvider {
         builder.add("parallel.settings.title", "Parallel Players Settings");
         builder.add("parallel.settings.section.display", "Display");
         builder.add("parallel.settings.doll_follows_cursor", "Doll Follows Cursor");
-        builder.add("parallel.settings.doll_follows_cursor.tooltip", "The paper doll on the character screens turns to look at the mouse.");
+        builder.add("parallel.settings.doll_follows_cursor.tooltip", "The paper doll on the character screens turns to look at the cursor.");
         builder.add("parallel.settings.doll_shows_armor", "Doll Armor");
         builder.add("parallel.settings.doll_shows_armor.tooltip", "The paper doll wears the character's armor and anything else on its head.");
         builder.add("parallel.settings.doll_shows_items", "Doll Items");
-        builder.add("parallel.settings.doll_shows_items.tooltip", "The paper doll holds the items in the character's hands.");
+        builder.add("parallel.settings.doll_shows_items.tooltip", "The paper doll holds equipped items in the character's hands.");
         builder.add("parallel.settings.section.characters", "Characters");
         builder.add("parallel.settings.backup_limit", "Backups");
         builder.add("parallel.settings.backup_limit.tooltip", "How many earlier copies of each character's data to keep, one made each time it enters a world. Lowering this deletes the oldest copies the next time a character is played.");
@@ -104,22 +104,22 @@ public class ParallelPlayersLangProvider extends FabricLanguageProvider {
         builder.add("parallel.settings.backup_timing.enter_world", "Entering a World");
         builder.add("parallel.settings.backup_timing.enter_world.tooltip", "Each time a character enters a world.");
         builder.add("parallel.settings.backup_timing.world_save", "Every Save");
-        builder.add("parallel.settings.backup_timing.world_save.tooltip", "Before every save, autosaves included. Gives the most restore points, but fills up the backup limit fastest.");
+        builder.add("parallel.settings.backup_timing.world_save.tooltip", "Before every save, autosaves included. Gives the most restore points, but fills up the limit fastest.");
         builder.add("parallel.settings.backup_timing.game_launch", "Once per Launch");
         builder.add("parallel.settings.backup_timing.game_launch.tooltip", "The first time each character enters a world after starting the game.");
         builder.add("parallel.settings.leave_wait", "Wait When Leaving");
         builder.add("parallel.settings.leave_wait.tooltip", "When leaving a server or quitting the game while playing a character there, how long to wait for the server to send the character's last save before going anyway.");
-        builder.add("parallel.settings.section.worlds", "Your Worlds");
-        builder.add("parallel.settings.section.worlds.note", "Applies to your singleplayer worlds and LAN games you host. Servers have their own config/parallel/server.json.");
+        builder.add("parallel.settings.section.worlds", "Worlds");
+        builder.add("parallel.settings.section.worlds.note", "Applies to your singleplayer worlds and LAN games you host.");
         builder.add("parallel.settings.characters_enabled", "Characters");
-        builder.add("parallel.settings.characters_enabled.tooltip", "When off, every world uses its own player data, as it would without the mod.");
+        builder.add("parallel.settings.characters_enabled.tooltip", "When off, every world uses its own player data, as it would in vanilla.");
         builder.add("parallel.settings.enforce_gamemodes", "Gamemode Rules");
         builder.add("parallel.settings.enforce_gamemodes.tooltip", "Characters can only enter worlds of their own gamemode: survival, creative or hardcore.");
         builder.add("parallel.settings.sync_interval", "Sync Interval");
-        builder.add("parallel.settings.sync_interval.tooltip", "How often the characters of players who joined from another computer are saved and sent back to their game, so a crash or lost connection costs at most this much play. Saves Only sends them when the game saves and when they leave.");
+        builder.add("parallel.settings.sync_interval.tooltip", "How often the characters of players who joined from another client are saved and sent back to their game, so a crash or lost connection costs at most this much play. Saves Only sends them when the game saves and when they leave.");
         builder.add("parallel.settings.sync_interval.off", "Saves Only");
         builder.add("parallel.settings.reveal_usernames", "Usernames for Ops");
-        builder.add("parallel.settings.reveal_usernames.tooltip", "Operators see the username of players on characters next to the character's name, above their head and in the tab list. A permissions mod can decide this per player with parallel.usernames.see.");
+        builder.add("parallel.settings.reveal_usernames.tooltip", "Operators see the username of players on characters next to the character's name, above their head and in the tab list.");
         builder.add("parallel.settings.seconds", "%ss");
 
         // Leaving a server while playing a character
