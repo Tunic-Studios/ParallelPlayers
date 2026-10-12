@@ -12,6 +12,7 @@ import net.fabricmc.fabric.api.client.networking.v1.ClientConfigurationConnectio
 import net.fabricmc.fabric.api.client.networking.v1.ClientConfigurationNetworking;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
+import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.GenericMessageScreen;
 import net.minecraft.client.gui.screens.Screen;
@@ -40,6 +41,8 @@ public final class ClientCharacterSync {
     private static volatile @Nullable UUID playingAs;
     /** The world id of the server this client is connected to, once it has asked for a character. */
     private static volatile @Nullable String serverWorld;
+    /** Whether the connected server lets this player see the usernames of players on characters. */
+    private static volatile boolean showUsernames;
     /** The names of the characters other players on the connected server play as, by player. */
     private static final Map<UUID, String> ALIASES = new ConcurrentHashMap<>();
     /** The disconnect held back until the server's last save arrives; only touched on the client thread. */
@@ -61,6 +64,7 @@ public final class ClientCharacterSync {
         // A new connection starts as the account; a server with the mod says otherwise while connecting.
         ClientConfigurationConnectionEvents.INIT.register((_, client) -> {
             playingAs = null;
+            showUsernames = false;
             serverWorld = null;
             ALIASES.clear();
             // Called on a network thread; textures are released on the client thread.
@@ -68,6 +72,7 @@ public final class ClientCharacterSync {
         });
         ClientPlayConnectionEvents.DISCONNECT.register((_, client) -> {
             playingAs = null;
+            showUsernames = false;
             serverWorld = null;
             pendingLeave = null;
             ALIASES.clear();
@@ -131,6 +136,7 @@ public final class ClientCharacterSync {
             }
         });
         ClientPlayNetworking.registerGlobalReceiver(CharacterPayloads.LeaveReady.TYPE, (_, _) -> finishLeaving());
+        ClientPlayNetworking.registerGlobalReceiver(CharacterPayloads.ShowUsernames.TYPE, (payload, _) -> showUsernames = payload.show());
         ClientPlayNetworking.registerGlobalReceiver(CharacterPayloads.PlayerCharacters.TYPE, (payload, _) -> {
             for (CharacterPayloads.PlayerCharacters.Entry entry : payload.players()) {
                 if (entry.name() != null) {
@@ -193,6 +199,17 @@ public final class ClientCharacterSync {
     /** The name of the character another player on the connected server plays as, if they play one. */
     public static Optional<String> alias(UUID player) {
         return Optional.ofNullable(ALIASES.get(player));
+    }
+
+    /**
+     * A name as shown for another player: followed by their username in grey when they are on a character and
+     * the server lets this player see usernames, otherwise as it is.
+     */
+    public static Component withUsername(UUID player, String username, Component name) {
+        if (!showUsernames || !ALIASES.containsKey(player)) {
+            return name;
+        }
+        return name.copy().append(Component.literal(" (" + username + ")").withStyle(ChatFormatting.GRAY));
     }
 
     /** The character played on the connected server, if it is not singleplayer and one is being played. */

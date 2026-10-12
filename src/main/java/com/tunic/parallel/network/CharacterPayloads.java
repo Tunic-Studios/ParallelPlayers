@@ -46,6 +46,7 @@ public final class CharacterPayloads {
         PayloadTypeRegistry.serverboundPlay().register(Leave.TYPE, Leave.STREAM_CODEC);
         PayloadTypeRegistry.clientboundPlay().register(LeaveReady.TYPE, LeaveReady.STREAM_CODEC);
         PayloadTypeRegistry.clientboundPlay().registerLarge(PlayerCharacters.TYPE, PlayerCharacters.STREAM_CODEC, PlayerCharacters.MAX_SIZE);
+        PayloadTypeRegistry.clientboundPlay().register(ShowUsernames.TYPE, ShowUsernames.STREAM_CODEC);
     }
 
     private static <T extends CustomPacketPayload> CustomPacketPayload.Type<T> payloadType(String name) {
@@ -189,6 +190,23 @@ public final class CharacterPayloads {
                             buf.readNullable(FriendlyByteBuf::readUtf),
                             buf.readNullable(in -> new CharacterSkin(in.readNullable(FriendlyByteBuf::readUtf), in.readBoolean())),
                             buf.readNullable(in -> in.readByteArray(CharacterSkin.MAX_IMAGE_BYTES))));
+        }
+    }
+
+    /**
+     * Server to client, while playing: whether this player may see the usernames of players on characters.
+     * Sent when they join and whenever they are made operator or stop being one.
+     */
+    public record ShowUsernames(boolean show) implements CustomPacketPayload {
+
+        public static final Type<ShowUsernames> TYPE = payloadType("show_usernames");
+        public static final StreamCodec<FriendlyByteBuf, ShowUsernames> STREAM_CODEC = StreamCodec.of(
+                (buf, payload) -> buf.writeBoolean(payload.show()),
+                buf -> new ShowUsernames(buf.readBoolean()));
+
+        @Override
+        public @NonNull Type<ShowUsernames> type() {
+            return TYPE;
         }
     }
 

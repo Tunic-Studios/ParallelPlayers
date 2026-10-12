@@ -69,6 +69,8 @@
   "parallel.settings.enforce_gamemodes.tooltip": "Characters can only enter worlds of their own gamemode: survival, creative or hardcore.",
   "parallel.settings.leave_wait": "Wait When Leaving",
   "parallel.settings.leave_wait.tooltip": "When leaving a server or quitting the game while playing a character there, how long to wait for the server to send the character's last save before going anyway.",
+  "parallel.settings.reveal_usernames": "Usernames for Ops",
+  "parallel.settings.reveal_usernames.tooltip": "Operators see the username of players on characters next to the character's name, above their head and in the tab list. A permissions mod can decide this per player with parallel.usernames.see.",
   "parallel.settings.seconds": "%ss",
   "parallel.settings.section.characters": "Characters",
   "parallel.settings.section.display": "Display",

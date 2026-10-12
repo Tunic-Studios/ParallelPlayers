@@ -7,6 +7,7 @@ import com.llamalad7.mixinextras.sugar.Local;
 import com.mojang.authlib.GameProfile;
 import com.mojang.datafixers.DataFixer;
 import com.tunic.parallel.character.CharacterSwap;
+import com.tunic.parallel.network.CharacterSync;
 import net.minecraft.ChatFormatting;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
@@ -78,6 +79,15 @@ public abstract class PlayerListMixin {
                         .withStyle(ChatFormatting.YELLOW))
                 .orElse(message);
         original.call(playerList, joined, overlay);
+    }
+
+    /**
+     * Vanilla tells a player their permission level when they join and whenever they are made operator or stop
+     * being one; whether they may see usernames can change with it.
+     */
+    @Inject(method = "sendPlayerPermissionLevel(Lnet/minecraft/server/level/ServerPlayer;)V", at = @At("TAIL"))
+    private void parallel$shareUsernameVisibility(ServerPlayer player, CallbackInfo ci) {
+        CharacterSync.shareUsernameVisibility(this.server, player);
     }
 
     /** After vanilla's last save of a leaving player, which still belongs to their character. */

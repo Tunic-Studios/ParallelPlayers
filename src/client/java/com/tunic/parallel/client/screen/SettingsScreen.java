@@ -75,7 +75,9 @@ public class SettingsScreen extends OptionsSubScreen {
         this.list.addSmall(new IntSlider("parallel.settings.sync_interval", note, 0, ServerConfig.MAX_SYNC_INTERVAL, 10,
                 this.server.syncIntervalSeconds,
                 value -> value == 0 ? Component.translatable("parallel.settings.sync_interval.off") : seconds(value),
-                value -> this.server.syncIntervalSeconds = value), null);
+                value -> this.server.syncIntervalSeconds = value),
+                this.toggle("parallel.settings.reveal_usernames", note, this.server.revealUsernamesToOperators,
+                        value -> this.server.revealUsernamesToOperators = value));
     }
 
     @Override

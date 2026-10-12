@@ -1,6 +1,7 @@
 package com.tunic.parallel.config;
 
 import me.lucko.fabric.api.permissions.v0.Permissions;
+import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.server.players.NameAndId;
 
@@ -18,6 +19,11 @@ public final class ParallelPermissions {
      * characters out of those worlds.
      */
     public static final String BYPASS_GAMEMODES = "parallel.gamemodes.bypass";
+    /**
+     * Sees the usernames of players on characters. Default: operators, unless
+     * {@link ServerConfig#revealUsernamesToOperators} is off.
+     */
+    public static final String SEE_USERNAMES = "parallel.usernames.see";
 
     private ParallelPermissions() {
     }
@@ -32,6 +38,11 @@ public final class ParallelPermissions {
 
     public static boolean bypassesGamemodes(ServerPlayer player) {
         return Permissions.check(player, BYPASS_GAMEMODES, false);
+    }
+
+    public static boolean seesUsernames(MinecraftServer server, ServerPlayer player) {
+        boolean byDefault = ServerConfig.get().revealUsernamesToOperators && server.getPlayerList().isOp(player.nameAndId());
+        return Permissions.check(player, SEE_USERNAMES, byDefault);
     }
 
     /** {@link #bypassesGamemodes(ServerPlayer)} while the player is still connecting; see {@link #canUseCharacters}. */

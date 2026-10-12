@@ -19,7 +19,9 @@ public abstract class ClientPlayerNameMixin {
     @ModifyReturnValue(method = "getName", at = @At("RETURN"))
     private Component parallel$characterName(Component original) {
         if ((Object) this instanceof RemotePlayer player) {
-            return ClientCharacterSync.alias(player.getUUID()).<Component>map(Component::literal).orElse(original);
+            return ClientCharacterSync.alias(player.getUUID())
+                    .map(alias -> ClientCharacterSync.withUsername(player.getUUID(), player.getGameProfile().name(), Component.literal(alias)))
+                    .orElse(original);
         }
         return original;
     }

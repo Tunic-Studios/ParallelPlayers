@@ -18,6 +18,13 @@ public final class ServerConfig {
     /** Whether a character may only enter worlds of its own gamemode (survival, creative or hardcore). */
     public boolean enforceGamemodes = true;
 
+    /**
+     * Whether operators see the usernames of players on characters, next to the character's name above their
+     * head and in the tab list. A permissions mod can decide this per player instead, with
+     * {@link ParallelPermissions#SEE_USERNAMES}; this is the default it falls back to.
+     */
+    public boolean revealUsernamesToOperators = true;
+
     /** Longest allowed {@link #syncIntervalSeconds}. */
     public static final int MAX_SYNC_INTERVAL = 600;
 

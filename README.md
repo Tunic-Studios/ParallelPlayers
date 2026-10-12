@@ -55,10 +55,11 @@ singleplayer worlds and on servers that have the mod installed.
   in `server.json`, and control who may use them with a
   permissions mod such as [LuckPerms](https://luckperms.net/):
 
-  | Permission                    | Default  | Allows                                              |
-  |-------------------------------|----------|-----------------------------------------------------|
-  | `parallel.characters.use`     | everyone | playing as a character                              |
-  | `parallel.gamemodes.bypass`   | nobody   | taking a character into a world of another gamemode |
+  | Permission                  | Default   | Allows                                              |
+  |-----------------------------|-----------|-----------------------------------------------------|
+  | `parallel.characters.use`   | everyone  | playing as a character                              |
+  | `parallel.gamemodes.bypass` | nobody    | taking a character into a world of another gamemode |
+  | `parallel.usernames.see`    | operators | seeing the usernames of players on characters       |
 
 ## Where things are kept
 

@@ -118,6 +118,8 @@ public class ParallelPlayersLangProvider extends FabricLanguageProvider {
         builder.add("parallel.settings.sync_interval", "Sync Interval");
         builder.add("parallel.settings.sync_interval.tooltip", "How often the characters of players who joined from another computer are saved and sent back to their game, so a crash or lost connection costs at most this much play. Saves Only sends them when the game saves and when they leave.");
         builder.add("parallel.settings.sync_interval.off", "Saves Only");
+        builder.add("parallel.settings.reveal_usernames", "Usernames for Ops");
+        builder.add("parallel.settings.reveal_usernames.tooltip", "Operators see the username of players on characters next to the character's name, above their head and in the tab list. A permissions mod can decide this per player with parallel.usernames.see.");
         builder.add("parallel.settings.seconds", "%ss");
 
         // Leaving a server while playing a character

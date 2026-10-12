@@ -71,6 +71,13 @@ public final class CharacterSync {
         });
     }
 
+    /** Tells the player's client whether it may show the usernames of players on characters. */
+    public static void shareUsernameVisibility(MinecraftServer server, ServerPlayer player) {
+        if (ServerPlayNetworking.canSend(player, CharacterPayloads.ShowUsernames.TYPE)) {
+            ServerPlayNetworking.send(player, new CharacterPayloads.ShowUsernames(ParallelPermissions.seesUsernames(server, player)));
+        }
+    }
+
     /**
      * Sends a character, as it was just saved, back to the player's client. After the first time only the
      * parts that changed since are sent; the client keeps its copy of the rest.
