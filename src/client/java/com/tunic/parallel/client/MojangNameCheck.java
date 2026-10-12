@@ -49,7 +49,7 @@ public final class MojangNameCheck {
         List<CompletableFuture<Result>> checks = CharacterNames.usernamesToCheck(name).stream()
                 .map(username -> checkUsername(username, token))
                 .toList();
-        return CompletableFuture.allOf(checks.toArray(CompletableFuture[]::new)).thenApply(done -> {
+        return CompletableFuture.allOf(checks.toArray(CompletableFuture[]::new)).thenApply(_ -> {
             List<Result> results = checks.stream().map(CompletableFuture::join).toList();
             if (results.contains(Result.NOT_ALLOWED)) {
                 return Result.NOT_ALLOWED;

@@ -10,6 +10,7 @@
     "EntityRenderDispatcherMixin",
     "MinecraftMixin",
     "PlayerInfoMixin",
+    "SkinTextureDownloaderAccessor",
     "TitleScreenMixin",
     "WorldOpenFlowsMixin"
   ],

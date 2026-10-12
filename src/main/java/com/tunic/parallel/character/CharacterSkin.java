@@ -2,7 +2,10 @@ package com.tunic.parallel.character;
 
 import org.jspecify.annotations.Nullable;
 
+import java.nio.ByteBuffer;
 import java.util.List;
+import java.util.Locale;
+import java.util.Optional;
 
 /**
  * Which skin a character uses.
@@ -14,6 +17,21 @@ import java.util.List;
 public record CharacterSkin(@Nullable String id, boolean slim) {
 
     public static final String CUSTOM = "custom";
+
+    /*
+     * Skin images follow the rules of Mojang's own skin upload, so any skin that works on an account works for
+     * a character and the other way round: a PNG of at most 24 KB, 64x64 or the legacy 64x32 layout.
+     */
+    /** Largest skin image file, in bytes. */
+    public static final int MAX_IMAGE_BYTES = 24 * 1024;
+    public static final int IMAGE_WIDTH = 64;
+    public static final int IMAGE_HEIGHT = 64;
+    /** Height of a skin in the layout from before 1.8, without separate left limbs or outer layers. */
+    public static final int LEGACY_IMAGE_HEIGHT = 32;
+
+    private static final byte[] PNG_SIGNATURE = {(byte) 0x89, 'P', 'N', 'G', '\r', '\n', 0x1A, '\n'};
+    /** "IHDR", the chunk every PNG starts with, which holds its size. */
+    private static final int PNG_HEADER_CHUNK = 0x49484452;
 
     public static final CharacterSkin ACCOUNT = new CharacterSkin(null, false);
 
@@ -30,6 +48,49 @@ public record CharacterSkin(@Nullable String id, boolean slim) {
 
     public boolean isPreset() {
         return id != null && PRESETS.contains(id);
+    }
+
+    /** Why an image cannot be a skin. */
+    public enum ImageProblem {
+        TOO_LARGE,
+        NOT_PNG,
+        WRONG_SIZE;
+
+        public String translationKey() {
+            return "parallel.skin.error." + name().toLowerCase(Locale.ROOT);
+        }
+    }
+
+    /**
+     * What keeps the bytes from being a skin image, if anything; see {@link #MAX_IMAGE_BYTES}. The size is read
+     * from the PNG's header without decoding it, so anything that decodes an image checks it with this first: a
+     * small file can claim to be huge, and decoding it would take enormous amounts of memory.
+     */
+    public static Optional<ImageProblem> imageProblem(byte[] png) {
+        if (png.length > MAX_IMAGE_BYTES) {
+            return Optional.of(ImageProblem.TOO_LARGE);
+        }
+        if (png.length < 24) {
+            return Optional.of(ImageProblem.NOT_PNG);
+        }
+        for (int i = 0; i < PNG_SIGNATURE.length; i++) {
+            if (png[i] != PNG_SIGNATURE[i]) {
+                return Optional.of(ImageProblem.NOT_PNG);
+            }
+        }
+        ByteBuffer header = ByteBuffer.wrap(png);
+        if (header.getInt(12) != PNG_HEADER_CHUNK) {
+            return Optional.of(ImageProblem.NOT_PNG);
+        }
+        int width = header.getInt(16);
+        int height = header.getInt(20);
+        return width == IMAGE_WIDTH && (height == IMAGE_HEIGHT || height == LEGACY_IMAGE_HEIGHT)
+                ? Optional.empty() : Optional.of(ImageProblem.WRONG_SIZE);
+    }
+
+    /** Whether the bytes are a valid skin image; see {@link #imageProblem}. */
+    public static boolean isSkinImage(byte[] png) {
+        return imageProblem(png).isEmpty();
     }
 
     public CharacterSkin withSlim(boolean slim) {

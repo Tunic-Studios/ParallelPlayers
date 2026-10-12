@@ -156,7 +156,7 @@ public final class CharacterPayloads {
     public record PlayerCharacters(List<Entry> players) implements CustomPacketPayload {
 
         /** Enough for a full server of imported skins. */
-        public static final int MAX_SIZE = 64 * (CharacterBundle.MAX_SKIN_SIZE + 1024);
+        public static final int MAX_SIZE = 64 * (CharacterSkin.MAX_IMAGE_BYTES + 1024);
         public static final Type<PlayerCharacters> TYPE = payloadType("player_characters");
         public static final StreamCodec<FriendlyByteBuf, PlayerCharacters> STREAM_CODEC = Entry.STREAM_CODEC
                 .apply(ByteBufCodecs.list())
@@ -188,7 +188,7 @@ public final class CharacterPayloads {
                             buf.readUUID(),
                             buf.readNullable(FriendlyByteBuf::readUtf),
                             buf.readNullable(in -> new CharacterSkin(in.readNullable(FriendlyByteBuf::readUtf), in.readBoolean())),
-                            buf.readNullable(in -> in.readByteArray(CharacterBundle.MAX_SKIN_SIZE))));
+                            buf.readNullable(in -> in.readByteArray(CharacterSkin.MAX_IMAGE_BYTES))));
         }
     }
 

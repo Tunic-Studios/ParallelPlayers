@@ -49,11 +49,11 @@ public class ParallelPlayers implements ModInitializer {
     public void onInitialize() {
         ServerConfig.reload();
         // Read again for every world or server start, so edits to the file apply without restarting the game.
-        ServerLifecycleEvents.SERVER_STARTING.register(server -> ServerConfig.reload());
-        ServerLifecycleEvents.SERVER_STOPPED.register(server -> CharacterSwap.onServerStopped());
+        ServerLifecycleEvents.SERVER_STARTING.register(_ -> ServerConfig.reload());
+        ServerLifecycleEvents.SERVER_STOPPED.register(_ -> CharacterSwap.onServerStopped());
         CharacterPayloads.register();
         CharacterSync.register();
-        ServerPlayConnectionEvents.JOIN.register((handler, sender, server) ->
+        ServerPlayConnectionEvents.JOIN.register((handler, _, server) ->
                 CharacterRules.onJoin(server, handler.getPlayer()).ifPresent(refusal -> handler.disconnect(refusal.message())));
     }
 }

@@ -38,7 +38,6 @@ public class CharacterSkinScreen extends Screen {
     public record Result(CharacterSkin skin, byte @Nullable [] image) {
     }
 
-    private static final long MAX_IMAGE_BYTES = 1L << 20;
     private static final int FOOTER_BUTTON_WIDTH = 98;
     private static final int FOOTER_SPACING = 8;
 
@@ -90,14 +89,14 @@ public class CharacterSkinScreen extends Screen {
         LinearLayout footer = this.layout.addToFooter(LinearLayout.vertical().spacing(4));
         footer.defaultCellSetting().alignHorizontallyCenter();
         LinearLayout top = footer.addChild(LinearLayout.horizontal().spacing(FOOTER_SPACING));
-        top.addChild(Button.builder(Component.translatable("parallel.skin.import"), button -> this.chooseFile()).width(FOOTER_BUTTON_WIDTH).build());
-        this.modelButton = top.addChild(Button.builder(Component.empty(), button -> this.toggleModel()).width(FOOTER_BUTTON_WIDTH).build());
-        this.accountButton = top.addChild(Button.builder(Component.translatable("parallel.skin.account"), button -> this.useAccountSkin()).width(FOOTER_BUTTON_WIDTH).build());
+        top.addChild(Button.builder(Component.translatable("parallel.skin.import"), _ -> this.chooseFile()).width(FOOTER_BUTTON_WIDTH).build());
+        this.modelButton = top.addChild(Button.builder(Component.empty(), _ -> this.toggleModel()).width(FOOTER_BUTTON_WIDTH).build());
+        this.accountButton = top.addChild(Button.builder(Component.translatable("parallel.skin.account"), _ -> this.useAccountSkin()).width(FOOTER_BUTTON_WIDTH).build());
         int topRowWidth = 3 * FOOTER_BUTTON_WIDTH + 2 * FOOTER_SPACING;
         int halfWidth = (topRowWidth - FOOTER_SPACING) / 2;
         LinearLayout bottom = footer.addChild(LinearLayout.horizontal().spacing(FOOTER_SPACING));
-        bottom.addChild(Button.builder(CommonComponents.GUI_CANCEL, button -> this.onClose()).width(halfWidth).build());
-        bottom.addChild(Button.builder(CommonComponents.GUI_DONE, button -> this.finish()).width(halfWidth).build());
+        bottom.addChild(Button.builder(CommonComponents.GUI_CANCEL, _ -> this.onClose()).width(halfWidth).build());
+        bottom.addChild(Button.builder(CommonComponents.GUI_DONE, _ -> this.finish()).width(halfWidth).build());
 
         this.layout.visitWidgets(this::addRenderableWidget);
         this.repositionElements();
@@ -152,7 +151,7 @@ public class CharacterSkinScreen extends Screen {
 
     private void importFile(Path file) {
         try {
-            if (Files.size(file) > MAX_IMAGE_BYTES) {
+            if (Files.size(file) > CharacterSkin.MAX_IMAGE_BYTES) {
                 this.status = Component.translatable("parallel.skin.error.too_large").withStyle(ChatFormatting.RED);
                 this.update();
                 return;
@@ -160,13 +159,13 @@ public class CharacterSkinScreen extends Screen {
             byte[] bytes = Files.readAllBytes(file);
             var problem = CharacterSkins.loadDraft(bytes);
             if (problem.isPresent()) {
-                this.status = Component.literal(problem.get()).withStyle(ChatFormatting.RED);
+                this.status = problem.get().withStyle(ChatFormatting.RED);
             } else {
                 this.imported = bytes;
                 this.choice = new CharacterSkin(CharacterSkin.CUSTOM, this.choice.slim());
                 this.status = Component.translatable("parallel.skin.imported", file.getFileName().toString()).withStyle(ChatFormatting.GREEN);
             }
-        } catch (IOException e) {
+        } catch (IOException _) {
             this.status = Component.translatable("parallel.skin.error.read").withStyle(ChatFormatting.RED);
         }
         this.syncList();

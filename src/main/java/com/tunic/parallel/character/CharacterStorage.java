@@ -277,7 +277,13 @@ public final class CharacterStorage {
                 readOptional(dir(id).resolve(APPEARANCE_FILE)),
                 readOptionalText(statsFile(id)),
                 readOptionalText(advancementsFile(id)),
-                withSkin && meta.skinChoice().isCustom() ? readOptional(skinFile(id)) : null));
+                withSkin && meta.skinChoice().isCustom() ? skinImage(id) : null));
+    }
+
+    /** The character's imported skin image, if it has a valid one; see {@link CharacterSkin#imageProblem}. */
+    public byte @Nullable [] skinImage(UUID id) {
+        byte[] image = readOptional(skinFile(id));
+        return image != null && CharacterSkin.isSkinImage(image) ? image : null;
     }
 
     /** Takes the name and skin of a newer copy kept elsewhere. */
@@ -293,6 +299,7 @@ public final class CharacterStorage {
     private void importSkinImage(CharacterBundle bundle) {
         Path file = skinFile(bundle.meta().id());
         try {
+            Files.createDirectories(file.getParent());
             if (!bundle.meta().skinChoice().isCustom()) {
                 Files.deleteIfExists(file);
             } else if (bundle.skinImage() != null) {
@@ -321,11 +328,11 @@ public final class CharacterStorage {
             meta = new CharacterMeta(id, local.name(), local.createdAt(), incoming.lastPlayedAt(),
                     local.skin(), local.slim(), local.gamemode(), incoming.saveId());
         }
-        writeMeta(meta);
         if (backupFirst) {
             backupPlayerData(id);
         }
         try {
+            Files.createDirectories(dir(id));
             if (bundle.playerData() != null) {
                 writeAtomically(dir(id).resolve(DATA_FILE), bundle.playerData());
             }
@@ -344,6 +351,8 @@ public final class CharacterStorage {
         } catch (IOException e) {
             throw new UncheckedIOException("Failed to store character " + id, e);
         }
+
+        writeMeta(meta);
     }
 
     private static byte @Nullable [] readOptional(Path file) {
@@ -459,7 +468,7 @@ public final class CharacterStorage {
         }
         try {
             return playTimeTicks(Files.readString(file, StandardCharsets.UTF_8));
-        } catch (IOException e) {
+        } catch (IOException _) {
             return 0L;
         }
     }
@@ -480,7 +489,7 @@ public final class CharacterStorage {
                     .getAsJsonObject("minecraft:custom")
                     .get("minecraft:play_time");
             return time == null ? 0L : time.getAsLong();
-        } catch (RuntimeException e) {
+        } catch (RuntimeException _) {
             // A missing section (NullPointerException from the chain), wrong types or bad JSON all mean "unknown".
             return 0L;
         }
@@ -539,7 +548,7 @@ public final class CharacterStorage {
         Files.write(tmp, data);
         try {
             Files.move(tmp, target, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
-        } catch (AtomicMoveNotSupportedException e) {
+        } catch (AtomicMoveNotSupportedException _) {
             Files.move(tmp, target, StandardCopyOption.REPLACE_EXISTING);
         }
     }

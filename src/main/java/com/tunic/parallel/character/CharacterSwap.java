@@ -154,8 +154,9 @@ public final class CharacterSwap {
             // Otherwise the character has never been in this world: it spawns at the world's spawn point.
             return Optional.of(tag);
         } catch (Exception e) {
-            LOGGER.error("Failed to load character {}, falling back to the world's own player data", id, e);
-            return Optional.ofNullable(worldData);
+            LOGGER.error("Failed to load character {}, playing as the account instead", id, e);
+            PLAYING.remove(player.id());
+            return accountData(server, player, worldData);
         }
     }
 
@@ -163,11 +164,13 @@ public final class CharacterSwap {
      * Statistics file to use for this player instead of the world's, if a character is in use. Vanilla
      * reads and writes the file itself, so statistics follow the character with no copying.
      */
+    @SuppressWarnings("unused")
     public static Optional<Path> statsFile(MinecraftServer server, NameAndId player) {
         return session(player).map(session -> session.storage().statsFile(session.character()));
     }
 
     /** Same as {@link #statsFile} for advancement progress. */
+    @SuppressWarnings("unused")
     public static Optional<Path> advancementsFile(MinecraftServer server, NameAndId player) {
         return session(player).map(session -> session.storage().advancementsFile(session.character()));
     }
@@ -230,8 +233,8 @@ public final class CharacterSwap {
             Choice choice;
             if (ours != null && winner.server) {
                 storage.importIdentity(upload);
-                CharacterBundle newer = storage.export(id, false).orElse(null);
-                choice = new Choice(id, newer, ours.saveId(), winner.conflict && newer != null);
+                CharacterBundle newer = storage.export(id, false).orElseThrow(() -> new IllegalStateException("Server copy vanished"));
+                choice = new Choice(id, newer, ours.saveId(), winner.conflict);
             } else {
                 if (winner.conflict) {
                     storage.keepConflictCopy(id);
@@ -285,6 +288,11 @@ public final class CharacterSwap {
         }
         // Both copies started out the same, so the one with more play time was played more since.
         return serverTicks.getAsLong() >= clientTicks.getAsLong() ? Winner.SERVER_CONFLICT : Winner.CLIENT_CONFLICT;
+    }
+
+    /** Forgets a character chosen on an earlier connection that never got as far as joining. */
+    public static void forgetChoice(UUID player) {
+        CHOSEN.remove(player);
     }
 
     /** Who the player is playing as on this server, or empty when they play as their account. */

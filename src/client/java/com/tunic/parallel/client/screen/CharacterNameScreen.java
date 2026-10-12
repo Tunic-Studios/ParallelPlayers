@@ -85,13 +85,13 @@ public class CharacterNameScreen extends Screen {
                     .withValues(CharacterGamemode.values())
                     .withTooltip(value -> Tooltip.create(Component.translatable(value.descriptionKey())
                             .append("\n\n").append(Component.translatable("parallel.gamemode.locked"))))
-                    .create(0, 0, 200, 20, Component.translatable("parallel.gamemode.label"), (button, value) -> this.gamemode = value));
+                    .create(0, 0, 200, 20, Component.translatable("parallel.gamemode.label"), (_, value) -> this.gamemode = value));
         }
 
         LinearLayout buttons = this.layout.addChild(LinearLayout.horizontal().spacing(4));
         buttons.defaultCellSetting().paddingTop(8);
-        buttons.addChild(Button.builder(CommonComponents.GUI_CANCEL, button -> this.onClose()).width(98).build());
-        this.confirmButton = buttons.addChild(Button.builder(this.confirmLabel, button -> this.confirm()).width(98).build());
+        buttons.addChild(Button.builder(CommonComponents.GUI_CANCEL, _ -> this.onClose()).width(98).build());
+        this.confirmButton = buttons.addChild(Button.builder(this.confirmLabel, _ -> this.confirm()).width(98).build());
 
         this.layout.visitWidgets(this::addRenderableWidget);
         this.updateStatus();

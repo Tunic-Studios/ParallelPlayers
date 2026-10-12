@@ -3,6 +3,7 @@ package com.tunic.parallel.mixin.client;
 import com.llamalad7.mixinextras.injector.ModifyReturnValue;
 import com.tunic.parallel.client.CharacterSkins;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.multiplayer.ClientPacketListener;
 import net.minecraft.client.multiplayer.PlayerInfo;
 import net.minecraft.world.entity.player.PlayerSkin;
 import org.spongepowered.asm.mixin.Mixin;
@@ -23,7 +24,10 @@ public abstract class PlayerInfoMixin {
     private PlayerSkin parallel$characterSkin(PlayerSkin original) {
         Minecraft minecraft = Minecraft.getInstance();
         UUID player = ((PlayerInfo) (Object) this).getProfile().id();
-        if (!player.equals(minecraft.getUser().getProfileId())) {
+        ClientPacketListener connection = minecraft.getConnection();
+        UUID self = connection != null ? connection.getLocalGameProfile().id() : minecraft.getUser().getProfileId();
+
+        if (!player.equals(self)) {
             return CharacterSkins.forOtherPlayer(player, original);
         }
         return minecraft.isLocalServer()

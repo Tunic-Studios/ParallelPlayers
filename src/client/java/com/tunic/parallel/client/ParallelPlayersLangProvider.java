@@ -56,7 +56,9 @@ public class ParallelPlayersLangProvider extends FabricLanguageProvider {
         builder.add("parallel.skin.model.slim", "Slim");
         builder.add("parallel.skin.imported", "Imported %s");
         builder.add("parallel.skin.using_account", "Using your account's skin. Pick a default skin or import a 64x64 PNG.");
-        builder.add("parallel.skin.error.too_large", "That file is too large to be a skin");
+        builder.add("parallel.skin.error.too_large", "Skins can be at most 24 KB, the same as on minecraft.net");
+        builder.add("parallel.skin.error.not_png", "That file is not a PNG image");
+        builder.add("parallel.skin.error.wrong_size", "Skins must be 64x64 or 64x32 pixels");
         builder.add("parallel.skin.error.read", "Could not read that file");
 
         // Character gamemodes

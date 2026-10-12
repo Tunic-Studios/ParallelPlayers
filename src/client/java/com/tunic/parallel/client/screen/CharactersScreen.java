@@ -113,12 +113,12 @@ public class CharactersScreen extends Screen {
         GridLayout footer = this.layout.addToFooter(new GridLayout().columnSpacing(8).rowSpacing(4));
         footer.defaultCellSetting().alignHorizontallyCenter();
         GridLayout.RowHelper row = footer.createRowHelper(3);
-        this.renameButton = row.addChild(Button.builder(Component.translatable("parallel.characters.rename"), button -> this.renameCharacter()).width(98).build());
-        row.addChild(Button.builder(Component.translatable("parallel.characters.new"), button -> this.createCharacter()).width(98).build());
-        this.skinButton = row.addChild(Button.builder(Component.translatable("parallel.characters.skin"), button -> this.editSkin()).width(98).build());
-        this.selectButton = row.addChild(Button.builder(Component.translatable("parallel.characters.select"), button -> this.selectHighlighted()).width(98).build());
-        this.deleteButton = row.addChild(Button.builder(Component.translatable("parallel.characters.delete"), button -> this.deleteCharacter()).width(98).build());
-        row.addChild(Button.builder(CommonComponents.GUI_BACK, button -> this.onClose()).width(98).build());
+        this.renameButton = row.addChild(Button.builder(Component.translatable("parallel.characters.rename"), _ -> this.renameCharacter()).width(98).build());
+        row.addChild(Button.builder(Component.translatable("parallel.characters.new"), _ -> this.createCharacter()).width(98).build());
+        this.skinButton = row.addChild(Button.builder(Component.translatable("parallel.characters.skin"), _ -> this.editSkin()).width(98).build());
+        this.selectButton = row.addChild(Button.builder(Component.translatable("parallel.characters.select"), _ -> this.selectHighlighted()).width(98).build());
+        this.deleteButton = row.addChild(Button.builder(Component.translatable("parallel.characters.delete"), _ -> this.deleteCharacter()).width(98).build());
+        row.addChild(Button.builder(CommonComponents.GUI_BACK, _ -> this.onClose()).width(98).build());
 
         this.layout.visitWidgets(this::addRenderableWidget);
         this.repositionElements();
@@ -289,7 +289,7 @@ public class CharactersScreen extends Screen {
             return;
         }
         UUID id = selected.meta.id();
-        this.minecraft.gui.setScreen(new CharacterNameScreen(this, Component.translatable("parallel.characters.name.rename"), selected.meta.name(), (name, gamemode) -> {
+        this.minecraft.gui.setScreen(new CharacterNameScreen(this, Component.translatable("parallel.characters.name.rename"), selected.meta.name(), (name, _) -> {
             ParallelPlayers.characters().rename(id, name);
             this.refresh();
         }));
@@ -332,7 +332,7 @@ public class CharactersScreen extends Screen {
         String statsName = this.minecraft.getUser().getProfileId() + ".json";
         try (Stream<Path> worlds = Files.list(this.minecraft.getLevelSource().getBaseDir())) {
             return worlds.mapToLong(world -> CharacterStorage.playTimeTicks(world.resolve("stats").resolve(statsName))).sum();
-        } catch (IOException e) {
+        } catch (IOException _) {
             return 0L;
         }
     }

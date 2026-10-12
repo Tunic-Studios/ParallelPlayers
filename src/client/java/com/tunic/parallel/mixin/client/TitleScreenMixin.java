@@ -33,12 +33,12 @@ public abstract class TitleScreenMixin extends Screen {
         int logoBottom = 30 + 37 + 14;
         Button button;
         if (y > logoBottom) {
-            button = Button.builder(Component.translatable("parallel.characters.title"), b -> this.openCharacters())
+            button = Button.builder(Component.translatable("parallel.characters.title"), _ -> this.openCharacters())
                     .bounds(this.width / 2 - 100, y, 200, 20)
                     .build();
         } else {
             // Not enough room above on very high GUI scales: fall back to a compact button beside Singleplayer.
-            button = Button.builder(Component.literal("C"), b -> this.openCharacters())
+            button = Button.builder(Component.literal("C"), _ -> this.openCharacters())
                     .bounds(this.width / 2 - 100 - 24, singleplayerY, 20, 20)
                     .tooltip(Tooltip.create(Component.translatable("parallel.characters.title")))
                     .build();

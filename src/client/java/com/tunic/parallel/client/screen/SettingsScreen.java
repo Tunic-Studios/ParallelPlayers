@@ -92,7 +92,7 @@ public class SettingsScreen extends OptionsSubScreen {
     private CycleButton<Boolean> toggle(String key, @Nullable Component note, boolean value, Consumer<Boolean> onChange) {
         Tooltip tooltip = tooltip(key, note);
         return CycleButton.onOffBuilder(value)
-                .withTooltip(ignored -> tooltip)
+                .withTooltip(_ -> tooltip)
                 .create(0, 0, BUTTON_WIDTH, 20, Component.translatable(key), (_, newValue) -> onChange.accept(newValue));
     }
 

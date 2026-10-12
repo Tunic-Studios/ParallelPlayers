@@ -56,16 +56,17 @@ public final class ClientCharacterSync {
     private ClientCharacterSync() {
     }
 
-    @SuppressWarnings("resource")
+    @SuppressWarnings({"resource", "unused"})
     public static void register() {
         // A new connection starts as the account; a server with the mod says otherwise while connecting.
-        ClientConfigurationConnectionEvents.INIT.register((listener, client) -> {
+        ClientConfigurationConnectionEvents.INIT.register((_, client) -> {
             playingAs = null;
             serverWorld = null;
             ALIASES.clear();
-            CharacterSkins.clearOtherPlayers();
+            // Called on a network thread; textures are released on the client thread.
+            client.execute(CharacterSkins::clearOtherPlayers);
         });
-        ClientPlayConnectionEvents.DISCONNECT.register((listener, client) -> {
+        ClientPlayConnectionEvents.DISCONNECT.register((_, client) -> {
             playingAs = null;
             serverWorld = null;
             pendingLeave = null;
@@ -102,22 +103,35 @@ public final class ClientCharacterSync {
                     }
                     // Joining a server is entering a world, for the backup timing.
                     backUp(character, true);
-                    if (payload.newer() != null) {
+                    CharacterBundle newer = payload.newer();
+                    if (newer != null) {
+                        if (!character.equals(newer.meta().id())) {
+                            LOGGER.warn("Ignoring the server's copy of another character than the one played ({})", newer.meta().id());
+                            return;
+                        }
                         if (payload.conflict()) {
                             keepConflictCopy(character);
                         }
-                        saveLocally(payload.newer());
+                        if (!saveLocally(newer)) {
+                            return;
+                        }
                     }
                     markSynced(character, payload.saveId());
                 }));
-        ClientPlayNetworking.registerGlobalReceiver(CharacterPayloads.Sync.TYPE, (payload, context) -> {
+        ClientPlayNetworking.registerGlobalReceiver(CharacterPayloads.Sync.TYPE, (payload, _) -> {
             UUID character = payload.character().meta().id();
+            if (!character.equals(playingAs)) {
+                LOGGER.warn("Ignoring a save of another character than the one played ({})", character);
+                return;
+            }
             backUp(character, false);
-            saveLocally(payload.character());
-            markSynced(character, payload.character().meta().saveId());
+            // Only a save that was stored counts as shared with the server.
+            if (saveLocally(payload.character())) {
+                markSynced(character, payload.character().meta().saveId());
+            }
         });
-        ClientPlayNetworking.registerGlobalReceiver(CharacterPayloads.LeaveReady.TYPE, (payload, context) -> finishLeaving());
-        ClientPlayNetworking.registerGlobalReceiver(CharacterPayloads.PlayerCharacters.TYPE, (payload, context) -> {
+        ClientPlayNetworking.registerGlobalReceiver(CharacterPayloads.LeaveReady.TYPE, (_, _) -> finishLeaving());
+        ClientPlayNetworking.registerGlobalReceiver(CharacterPayloads.PlayerCharacters.TYPE, (payload, _) -> {
             for (CharacterPayloads.PlayerCharacters.Entry entry : payload.players()) {
                 if (entry.name() != null) {
                     ALIASES.put(entry.player(), entry.name());
@@ -281,11 +295,14 @@ public final class ClientCharacterSync {
         }
     }
 
-    private static void saveLocally(CharacterBundle character) {
+    /** Stores a copy received from the server; returns whether that worked. */
+    private static boolean saveLocally(CharacterBundle character) {
         try {
             ParallelPlayers.characters().importBundle(character, true, false);
+            return true;
         } catch (RuntimeException e) {
             LOGGER.error("Could not store character {} received from the server", character.meta().id(), e);
+            return false;
         }
     }
 }

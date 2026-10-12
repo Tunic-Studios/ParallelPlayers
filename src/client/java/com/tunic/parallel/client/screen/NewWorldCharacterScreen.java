@@ -76,7 +76,7 @@ public class NewWorldCharacterScreen extends Screen {
     /** Name, then skin; the gamemode is fixed to what the world needs. Returns here if either is cancelled. */
     private void createCharacter() {
         Component title = Component.translatable("parallel.characters.name.new");
-        this.minecraft.gui.setScreen(new CharacterNameScreen(this, title, "", CommonComponents.GUI_CONTINUE, false, (name, ignoredGamemode) -> {
+        this.minecraft.gui.setScreen(new CharacterNameScreen(this, title, "", CommonComponents.GUI_CONTINUE, false, (name, _) -> {
             Supplier<PlayerSkin> account = this.minecraft.getSkinManager().createLookup(this.minecraft.getGameProfile(), false);
             this.minecraft.gui.setScreen(new CharacterSkinScreen(this, name, null, account, result -> {
                 CharacterMeta created = ParallelPlayers.characters().create(name, this.world, result.skin(), result.image());

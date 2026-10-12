@@ -25,9 +25,7 @@ import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
+import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -58,16 +56,16 @@ public final class CharacterSync {
 
     public static void register() {
         ServerConfigurationConnectionEvents.CONFIGURE.register(CharacterSync::onConfigure);
-        ServerConfigurationConnectionEvents.DISCONNECT.register((listener, server) -> ASKED.remove(listener.getOwner().id()));
+        ServerConfigurationConnectionEvents.DISCONNECT.register((listener, _) -> ASKED.remove(listener.getOwner().id()));
         ServerConfigurationNetworking.registerGlobalReceiver(CharacterPayloads.Upload.TYPE, CharacterSync::onUpload);
-        ServerPlayConnectionEvents.JOIN.register((handler, sender, server) -> {
+        ServerPlayConnectionEvents.JOIN.register((handler, _, server) -> {
             LAST_SENT.remove(handler.getPlayer().getUUID());
             shareCharacters(server, handler.getPlayer());
         });
-        ServerPlayConnectionEvents.DISCONNECT.register((handler, server) -> LAST_SENT.remove(handler.getPlayer().getUUID()));
+        ServerPlayConnectionEvents.DISCONNECT.register((handler, _) -> LAST_SENT.remove(handler.getPlayer().getUUID()));
         ServerTickEvents.END_SERVER_TICK.register(CharacterSync::syncPeriodically);
         // Play-phase handlers run on the server thread.
-        ServerPlayNetworking.registerGlobalReceiver(CharacterPayloads.Leave.TYPE, (payload, context) -> {
+        ServerPlayNetworking.registerGlobalReceiver(CharacterPayloads.Leave.TYPE, (_, context) -> {
             CharacterSwap.saveBeforeLeaving(context.server(), context.player());
             context.responseSender().sendPacket(new CharacterPayloads.LeaveReady());
         });
@@ -152,12 +150,11 @@ public final class CharacterSync {
             return new CharacterPayloads.PlayerCharacters.Entry(id, meta.name(), skin, null);
         }
         try {
-            Path file = session.storage().skinFile(meta.id());
-            byte[] image = Files.isRegularFile(file) ? Files.readAllBytes(file) : null;
-            return image == null || image.length > CharacterBundle.MAX_SKIN_SIZE
+            byte[] image = session.storage().skinImage(meta.id());
+            return image == null
                     ? new CharacterPayloads.PlayerCharacters.Entry(id, meta.name(), null, null)
                     : new CharacterPayloads.PlayerCharacters.Entry(id, meta.name(), skin, image);
-        } catch (IOException e) {
+        } catch (UncheckedIOException e) {
             LOGGER.warn("Could not read the skin of {}'s character", player.getPlainTextName(), e);
             return new CharacterPayloads.PlayerCharacters.Entry(id, meta.name(), null, null);
         }
@@ -170,6 +167,7 @@ public final class CharacterSync {
      */
     private static void onConfigure(ServerConfigurationPacketListenerImpl listener, MinecraftServer server) {
         NameAndId player = new NameAndId(listener.getOwner());
+        CharacterSwap.forgetChoice(player.id());
         if (server.isSingleplayerOwner(player) || !ServerConfig.get().charactersEnabled
                 || !ServerConfigurationNetworking.canSend(listener, CharacterPayloads.Request.TYPE)) {
             return;

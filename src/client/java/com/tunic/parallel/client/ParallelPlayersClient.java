@@ -11,6 +11,6 @@ public class ParallelPlayersClient implements ClientModInitializer {
     public void onInitializeClient() {
         ClientConfig.reload();
         ClientCharacterSync.register();
-        PictureInPictureRendererRegistry.register(context -> new DollPictureRenderer());
+        PictureInPictureRendererRegistry.register(_ -> new DollPictureRenderer());
     }
 }

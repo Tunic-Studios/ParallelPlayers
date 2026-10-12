@@ -21,10 +21,8 @@ public record CharacterBundle(CharacterMeta meta, byte @Nullable [] playerData, 
 
     /** Largest single file accepted in a bundle; a character's player data is normally far smaller. */
     public static final int MAX_FILE_SIZE = 8 * 1024 * 1024;
-    /** Largest skin image accepted, the same as the skin screen allows importing. */
-    public static final int MAX_SKIN_SIZE = 1024 * 1024;
     /** Largest whole bundle on the wire, for the payloads that carry one. */
-    public static final int MAX_SIZE = 4 * MAX_FILE_SIZE + MAX_SKIN_SIZE + 64 * 1024;
+    public static final int MAX_SIZE = 4 * MAX_FILE_SIZE + CharacterSkin.MAX_IMAGE_BYTES + 64 * 1024;
 
     public static final StreamCodec<FriendlyByteBuf, CharacterBundle> STREAM_CODEC = StreamCodec.of(
             (buf, bundle) -> {
@@ -41,7 +39,12 @@ public record CharacterBundle(CharacterMeta meta, byte @Nullable [] playerData, 
                     buf.readNullable(in -> in.readByteArray(MAX_FILE_SIZE)),
                     buf.readNullable(in -> in.readUtf(MAX_FILE_SIZE)),
                     buf.readNullable(in -> in.readUtf(MAX_FILE_SIZE)),
-                    buf.readNullable(in -> in.readByteArray(MAX_SKIN_SIZE))));
+                    readSkinImage(buf)));
+
+    private static byte @Nullable [] readSkinImage(FriendlyByteBuf buf) {
+        byte[] image = buf.readNullable(in -> in.readByteArray(CharacterSkin.MAX_IMAGE_BYTES));
+        return image != null && CharacterSkin.isSkinImage(image) ? image : null;
+    }
 
     private static CharacterMeta readMeta(FriendlyByteBuf buf) {
         CharacterMeta meta = CharacterStorage.GSON.fromJson(buf.readUtf(MAX_FILE_SIZE), CharacterMeta.class);

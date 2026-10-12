@@ -7,7 +7,10 @@ import com.tunic.parallel.character.CharacterMeta;
 import com.tunic.parallel.character.CharacterSkin;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.texture.DynamicTexture;
+import com.tunic.parallel.mixin.client.SkinTextureDownloaderAccessor;
 import net.minecraft.core.ClientAsset;
+import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.resources.Identifier;
 import net.minecraft.world.entity.player.PlayerModelType;
 import net.minecraft.world.entity.player.PlayerSkin;
@@ -16,8 +19,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
+import java.io.UncheckedIOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -31,8 +33,6 @@ import java.util.UUID;
 public final class CharacterSkins {
 
     private static final Logger LOGGER = LoggerFactory.getLogger("parallel");
-
-    public static final int SKIN_SIZE = 64;
 
     private static final Identifier DRAFT_TEXTURE = Identifier.fromNamespaceAndPath(ParallelPlayers.MOD_ID, "textures/draft/skin.png");
 
@@ -107,16 +107,12 @@ public final class CharacterSkins {
         if (image == null) {
             return;
         }
-        try (NativeImage read = NativeImage.read(image)) {
-            if (validate(read).isPresent()) {
-                LOGGER.warn("Ignoring the skin the server sent for player {}: not {}x{}", player, SKIN_SIZE, SKIN_SIZE);
-                return;
-            }
+        try {
             Identifier textureId = otherPlayerId(player);
-            register(textureId, copy(read));
+            register(textureId, decode(image));
             OTHERS.put(player, new OtherSkin(skin, texture(textureId)));
         } catch (IOException e) {
-            LOGGER.warn("Ignoring the skin the server sent for player {}: not a PNG image", player, e);
+            LOGGER.warn("Ignoring the skin the server sent for player {}", player, e);
         }
     }
 
@@ -166,18 +162,16 @@ public final class CharacterSkins {
     /**
      * Reads and checks a skin PNG, and makes it the draft preview.
      *
-     * @return {@code Optional.empty()} on success, otherwise a short reason it was rejected
+     * @return {@code Optional.empty()} on success, otherwise why it was rejected
      */
-    public static Optional<String> loadDraft(byte[] png) {
-        try (NativeImage image = NativeImage.read(png)) {
-            Optional<String> problem = validate(image);
-            if (problem.isPresent()) {
-                return problem;
-            }
-            register(DRAFT_TEXTURE, copy(image));
+    public static Optional<MutableComponent> loadDraft(byte[] png) {
+        try {
+            register(DRAFT_TEXTURE, decode(png));
             return Optional.empty();
-        } catch (IOException e) {
-            return Optional.of("Not a valid PNG image");
+        } catch (IOException _) {
+            return Optional.of(CharacterSkin.imageProblem(png)
+                    .map(problem -> Component.translatable(problem.translationKey()))
+                    .orElseGet(() -> Component.translatable(CharacterSkin.ImageProblem.NOT_PNG.translationKey())));
         }
     }
 
@@ -192,37 +186,40 @@ public final class CharacterSkins {
         if (loaded != null) {
             return loaded;
         }
-        Path file = ParallelPlayers.characters().skinFile(id);
-        if (!Files.isRegularFile(file)) {
-            return null;
-        }
-        try (NativeImage image = NativeImage.read(Files.newInputStream(file))) {
-            if (validate(image).isPresent()) {
+        try {
+            byte[] png = ParallelPlayers.characters().skinImage(id);
+            if (png == null) {
                 return null;
             }
             Identifier textureId = customId(id);
-            register(textureId, copy(image));
+            register(textureId, decode(png));
             ClientAsset.ResourceTexture texture = texture(textureId);
             CUSTOM.put(id, texture);
             return texture;
-        } catch (IOException e) {
+        } catch (IOException | UncheckedIOException e) {
             LOGGER.warn("Could not load the skin of character {}", id, e);
             return null;
         }
     }
 
-    private static Optional<String> validate(NativeImage image) {
-        if (image.getWidth() != SKIN_SIZE || image.getHeight() != SKIN_SIZE) {
-            return Optional.of("Skin must be " + SKIN_SIZE + "x" + SKIN_SIZE + " pixels, this one is "
-                    + image.getWidth() + "x" + image.getHeight());
+    /**
+     * Decodes a skin PNG into a 64x64 texture image, the way vanilla prepares the skins it downloads: a legacy
+     * 64x32 skin is converted, and the base layer is made opaque.
+     *
+     * @throws IOException if it is not a valid skin image; see {@link CharacterSkin#imageProblem}
+     */
+    private static NativeImage decode(byte[] png) throws IOException {
+        Optional<CharacterSkin.ImageProblem> problem = CharacterSkin.imageProblem(png);
+        if (problem.isPresent()) {
+            throw new IOException("Not a valid skin image: " + problem.get());
         }
-        return Optional.empty();
-    }
-
-    private static NativeImage copy(NativeImage source) {
-        NativeImage copy = new NativeImage(source.getWidth(), source.getHeight(), false);
-        copy.copyFrom(source);
-        return copy;
+        NativeImage image = NativeImage.read(png);
+        try {
+            return SkinTextureDownloaderAccessor.parallel$processLegacySkin(image, "parallel skin");
+        } catch (IllegalStateException e) {
+            // Only if the decoded image disagrees with its header; vanilla has closed it already.
+            throw new IOException(e);
+        }
     }
 
     private static void register(Identifier id, NativeImage image) {
