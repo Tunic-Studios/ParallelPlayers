@@ -11,8 +11,8 @@ public class ParallelPlayersClient implements ClientModInitializer {
 
     @Override
     public void onInitializeClient() {
-        ClientConfig.reload();
         ParallelPlayers.setAccount(() -> Minecraft.getInstance().getUser().getProfileId());
+        ClientConfig.reload();
         ClientCharacterSync.register();
         PictureInPictureRendererRegistry.register(_ -> new DollPictureRenderer());
     }

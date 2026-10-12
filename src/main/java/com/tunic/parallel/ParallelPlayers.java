@@ -60,7 +60,11 @@ public class ParallelPlayers implements ModInitializer {
             return;
         }
         Path dir = FabricLoader.getInstance().getGameDir().resolve(FOLDER).resolve(current.toString());
+        CharacterStorage previous = characterStorage;
         characterStorage = new CharacterStorage(dir);
+        if (previous != null) {
+            characterStorage.copyBackupSettings(previous);
+        }
         activeCharacter = new ActiveCharacter(dir.resolve(ACTIVE_FILE), characterStorage);
         storageAccount = current;
     }

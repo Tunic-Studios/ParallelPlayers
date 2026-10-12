@@ -393,6 +393,12 @@ public final class CharacterStorage {
         this.backupTiming = timing;
     }
 
+    /** Takes over the backup settings of another storage, as when the client switches to another account's. */
+    public void copyBackupSettings(CharacterStorage other) {
+        this.backupLimit = other.backupLimit;
+        this.backupTiming = other.backupTiming;
+    }
+
     /** Backs the character up if the backup timing calls for it when it enters a world. */
     public void onEnterWorld(UUID id) {
         BackupTiming timing = this.backupTiming;
