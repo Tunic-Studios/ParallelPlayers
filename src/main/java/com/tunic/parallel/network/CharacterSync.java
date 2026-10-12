@@ -61,6 +61,7 @@ public final class CharacterSync {
         ServerPlayConnectionEvents.JOIN.register((handler, _, server) -> {
             LAST_SENT.remove(handler.getPlayer().getUUID());
             shareCharacters(server, handler.getPlayer());
+            shareUsernameVisibility(server, handler.getPlayer());
         });
         ServerPlayConnectionEvents.DISCONNECT.register((handler, _) -> LAST_SENT.remove(handler.getPlayer().getUUID()));
         ServerTickEvents.END_SERVER_TICK.register(CharacterSync::syncPeriodically);

@@ -17,6 +17,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.GenericMessageScreen;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.multiplayer.ClientLevel;
+import net.minecraft.client.multiplayer.ClientPacketListener;
 import net.minecraft.network.Connection;
 import net.minecraft.network.chat.Component;
 import org.jspecify.annotations.Nullable;
@@ -202,11 +203,16 @@ public final class ClientCharacterSync {
     }
 
     /**
-     * A name as shown for another player: followed by their username in grey when they are on a character and
-     * the server lets this player see usernames, otherwise as it is.
+     * A player's name as shown: followed by their username in grey when they are on a character and the server
+     * lets this player see usernames, otherwise as it is. Covers this player too, in the tab list.
      */
     public static Component withUsername(UUID player, String username, Component name) {
-        if (!showUsernames || !ALIASES.containsKey(player)) {
+        if (!showUsernames) {
+            return name;
+        }
+        ClientPacketListener connection = Minecraft.getInstance().getConnection();
+        boolean self = connection != null && player.equals(connection.getLocalGameProfile().id());
+        if (!(self ? playingAs != null : ALIASES.containsKey(player))) {
             return name;
         }
         return name.copy().append(Component.literal(" (" + username + ")").withStyle(ChatFormatting.GRAY));
