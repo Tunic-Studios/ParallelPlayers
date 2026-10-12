@@ -48,10 +48,20 @@ public class CharacterDollWidget extends AbstractWidget {
     private static final float VIEW_WIDTH_BLOCKS = 1.5F;
     /** Pixels of cursor offset per radian of turn, as in vanilla's inventory doll. */
     private static final float LOOK_DISTANCE = 40.0F;
+
     /** How far the head may turn from the body, in degrees, when the body has been dragged round. */
     private static final float MAX_HEAD_TURN = 60.0F;
     /** How quickly the head eases toward where it should face, per second; higher is snappier. */
     private static final float HEAD_TURN_SPEED = 12.0F;
+
+    /** How far above its spot the doll starts a landing, in blocks; about the air above its head. */
+    private static final float LANDING_DROP = 0.25F;
+    /** How long the fall of a landing takes, in seconds. */
+    private static final float LANDING_FALL_SECONDS = 0.2F;
+    /** How high the doll hops back up after touching down, in blocks. */
+    private static final float LANDING_BOUNCE = 0.04F;
+    /** How long that hop takes, in seconds. */
+    private static final float LANDING_BOUNCE_SECONDS = 0.12F;
 
     private final Minecraft minecraft;
     private Supplier<PlayerSkin> skin;
@@ -65,8 +75,12 @@ public class CharacterDollWidget extends AbstractWidget {
     private final long startNanos = System.nanoTime();
     /** Where the head currently faces, in degrees from the body; eased toward its target every frame. */
     private float headYaw;
+    /** How far the doll looks up or down, in radians of cursor angle; eased like {@link #headYaw}. */
+    private float lookPitch;
     /** When the last frame was drawn, for easing the head; 0 before the first. */
     private long lastFrameNanos;
+    /** When the current landing started; 0 when the doll is standing still. */
+    private long landingStartNanos;
 
     public CharacterDollWidget(int width, int height, Minecraft minecraft, Supplier<PlayerSkin> skin) {
         super(0, 0, width, height, CommonComponents.EMPTY);
@@ -88,6 +102,31 @@ public class CharacterDollWidget extends AbstractWidget {
     public void setLoadout(CharacterLoadout loadout) {
         this.loadout = loadout;
         this.dress();
+    }
+
+    /** Drops the doll onto its spot from a little above, as when it is swapped for another character. */
+    public void playLanding() {
+        this.landingStartNanos = System.nanoTime();
+    }
+
+    /** How far above its spot the doll is drawn at {@code now}, in blocks, while a landing plays. */
+    private float landingLift(long now) {
+        if (this.landingStartNanos == 0L) {
+            return 0.0F;
+        }
+        float seconds = (now - this.landingStartNanos) / 1_000_000_000.0F;
+        if (seconds < LANDING_FALL_SECONDS) {
+            // Falling under gravity: slow at the top, fastest as it touches down.
+            float t = seconds / LANDING_FALL_SECONDS;
+            return LANDING_DROP * (1.0F - t * t);
+        }
+        seconds -= LANDING_FALL_SECONDS;
+        if (seconds < LANDING_BOUNCE_SECONDS) {
+            float t = seconds / LANDING_BOUNCE_SECONDS;
+            return LANDING_BOUNCE * 4.0F * t * (1.0F - t);
+        }
+        this.landingStartNanos = 0L;
+        return 0.0F;
     }
 
     private void dress() {
@@ -185,7 +224,7 @@ public class CharacterDollWidget extends AbstractWidget {
         float eyeY = (this.getY() + this.getBottom()) / 2.0F - (state.eyeHeight - PLAYER_HEIGHT / 2.0F) * scale;
         boolean follow = ClientConfig.get().dollFollowsCursor;
         float yaw = follow ? (float) Math.atan((eyeX - mouseX) / LOOK_DISTANCE) : 0.0F;
-        float pitch = follow ? (float) Math.atan((eyeY - mouseY) / LOOK_DISTANCE) : 0.0F;
+        float targetPitch = follow ? (float) Math.atan((eyeY - mouseY) / LOOK_DISTANCE) : 0.0F;
         state.bodyRot = 180.0F + this.rotationY + yaw * 20.0F;
         // The head faces the cursor whichever way the body was dragged round, as far as a neck turns.
         // Without following, it simply faces the way the body does.
@@ -193,17 +232,21 @@ public class CharacterDollWidget extends AbstractWidget {
         long now = System.nanoTime();
         if (this.lastFrameNanos == 0L) {
             this.headYaw = target;
+            this.lookPitch = targetPitch;
         } else {
             float seconds = Math.min((now - this.lastFrameNanos) / 1_000_000_000.0F, 0.25F);
-            this.headYaw += (target - this.headYaw) * (1.0F - (float) Math.exp(-HEAD_TURN_SPEED * seconds));
+            float ease = 1.0F - (float) Math.exp(-HEAD_TURN_SPEED * seconds);
+            this.headYaw += (target - this.headYaw) * ease;
+            this.lookPitch += (targetPitch - this.lookPitch) * ease;
         }
         this.lastFrameNanos = now;
         state.yRot = this.headYaw;
+        float pitch = this.lookPitch;
         state.xRot = -pitch * 20.0F;
 
         Quaternionf tilt = new Quaternionf().rotateX(pitch * 20.0F * Mth.DEG_TO_RAD);
         Quaternionf rotation = new Quaternionf().rotateZ((float) Math.PI).mul(tilt);
-        Vector3f translation = new Vector3f(0.0F, state.boundingBoxHeight / 2.0F + 0.0625F, 0.0F);
+        Vector3f translation = new Vector3f(0.0F, state.boundingBoxHeight / 2.0F + 0.0625F - this.landingLift(now), 0.0F);
         DollPictureRenderer.extract(graphics, state, scale, translation, rotation, tilt, this.getX(), this.getY(), this.getRight(), this.getBottom());
     }
 

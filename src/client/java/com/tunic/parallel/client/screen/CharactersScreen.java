@@ -196,8 +196,11 @@ public class CharactersScreen extends Screen {
         this.selectedId = id;
         this.doll.visible = id != null;
         if (selected != null && !selected.id().equals(this.dollCharacter)) {
-            // The account's inventory lives in each world, so there is nothing of it to dress the doll in.
             this.doll.setLoadout(selected.meta == null ? CharacterLoadout.EMPTY : CharacterLoadout.read(ParallelPlayers.characters(), selected.id()));
+
+            if (this.dollCharacter != null) {
+                this.doll.playLanding();
+            }
         }
         this.dollCharacter = id;
         boolean character = selected != null && selected.meta != null;
