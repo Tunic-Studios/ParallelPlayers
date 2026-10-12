@@ -121,8 +121,8 @@ java {
 
 jar {
     def baseName = providers.gradleProperty("archives_base_name").get()
-    from("LICENSE.md") {
-        rename { "LICENSE_${baseName}.md" }
+    from("LICENSE") {
+        rename { "LICENSE_${baseName}" }
     }
 }
 

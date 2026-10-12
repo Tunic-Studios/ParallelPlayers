@@ -85,4 +85,4 @@ development client and server.
 
 ## License
 
-[MIT](LICENSE.md)
+[MIT](LICENSE)
