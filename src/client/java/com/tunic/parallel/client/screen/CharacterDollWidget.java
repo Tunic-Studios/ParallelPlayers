@@ -50,6 +50,8 @@ public class CharacterDollWidget extends AbstractWidget {
     private static final float LOOK_DISTANCE = 40.0F;
     /** How far the head may turn from the body, in degrees, when the body has been dragged round. */
     private static final float MAX_HEAD_TURN = 60.0F;
+    /** How quickly the head eases toward where it should face, per second; higher is snappier. */
+    private static final float HEAD_TURN_SPEED = 12.0F;
 
     private final Minecraft minecraft;
     private Supplier<PlayerSkin> skin;
@@ -61,6 +63,10 @@ public class CharacterDollWidget extends AbstractWidget {
     private boolean dressedWithArmor;
     private boolean dressedWithItems;
     private final long startNanos = System.nanoTime();
+    /** Where the head currently faces, in degrees from the body; eased toward its target every frame. */
+    private float headYaw;
+    /** When the last frame was drawn, for easing the head; 0 before the first. */
+    private long lastFrameNanos;
 
     public CharacterDollWidget(int width, int height, Minecraft minecraft, Supplier<PlayerSkin> skin) {
         super(0, 0, width, height, CommonComponents.EMPTY);
@@ -183,14 +189,37 @@ public class CharacterDollWidget extends AbstractWidget {
         state.bodyRot = 180.0F + this.rotationY + yaw * 20.0F;
         // The head faces the cursor whichever way the body was dragged round, as far as a neck turns.
         // Without following, it simply faces the way the body does.
-        state.yRot = !follow ? 0.0F
-                : Mth.clamp(Mth.wrapDegrees(yaw * 40.0F - this.rotationY - yaw * 20.0F), -MAX_HEAD_TURN, MAX_HEAD_TURN);
+        float target = getTarget(follow, yaw);
+        long now = System.nanoTime();
+        if (this.lastFrameNanos == 0L) {
+            this.headYaw = target;
+        } else {
+            float seconds = Math.min((now - this.lastFrameNanos) / 1_000_000_000.0F, 0.25F);
+            this.headYaw += (target - this.headYaw) * (1.0F - (float) Math.exp(-HEAD_TURN_SPEED * seconds));
+        }
+        this.lastFrameNanos = now;
+        state.yRot = this.headYaw;
         state.xRot = -pitch * 20.0F;
 
         Quaternionf tilt = new Quaternionf().rotateX(pitch * 20.0F * Mth.DEG_TO_RAD);
         Quaternionf rotation = new Quaternionf().rotateZ((float) Math.PI).mul(tilt);
         Vector3f translation = new Vector3f(0.0F, state.boundingBoxHeight / 2.0F + 0.0625F, 0.0F);
         DollPictureRenderer.extract(graphics, state, scale, translation, rotation, tilt, this.getX(), this.getY(), this.getRight(), this.getBottom());
+    }
+
+    private float getTarget(boolean follow, float yaw) {
+        float target = 0.0F;
+        if (follow) {
+            float wanted = Mth.wrapDegrees(yaw * 40.0F - this.rotationY - yaw * 20.0F);
+            if (wanted - this.headYaw > 180.0F) {
+                wanted -= 360.0F;
+            } else if (wanted - this.headYaw < -180.0F) {
+                wanted += 360.0F;
+            }
+
+            target = Mth.clamp(wanted, -MAX_HEAD_TURN, MAX_HEAD_TURN);
+        }
+        return target;
     }
 
     @Override
