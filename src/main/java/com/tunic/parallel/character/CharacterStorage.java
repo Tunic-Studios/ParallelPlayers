@@ -87,24 +87,16 @@ public final class CharacterStorage {
         return read;
     }
 
-    public CharacterMeta create(String name) {
-        long now = System.currentTimeMillis();
-        CharacterMeta meta = new CharacterMeta(UUID.randomUUID(), sanitizeName(name), now, now, null, false, null, 0L);
-        writeMeta(meta);
-        return meta;
-    }
-
     /**
-     * Creates a character that already has its mode and skin chosen.
+     * Creates a character.
      *
-     * @param mode  the character's mode, or {@code null} to let it adopt the first world it joins
-     * @param image the PNG for {@link CharacterSkin#CUSTOM}, otherwise ignored
+     * @param gamemode the character's gamemode, fixed from now on
+     * @param image    the PNG for {@link CharacterSkin#CUSTOM}, otherwise ignored
      */
-    public CharacterMeta create(String name, @Nullable CharacterMode mode, CharacterSkin skin, byte @Nullable [] image) {
-        CharacterMeta meta = create(name);
-        if (mode != null) {
-            setMode(meta.id(), mode);
-        }
+    public CharacterMeta create(String name, CharacterGamemode gamemode, CharacterSkin skin, byte @Nullable [] image) {
+        long now = System.currentTimeMillis();
+        CharacterMeta meta = new CharacterMeta(UUID.randomUUID(), sanitizeName(name), now, now, null, false, gamemode, 0L);
+        writeMeta(meta);
         setSkin(meta.id(), skin, image);
         return get(meta.id()).orElse(meta);
     }
@@ -129,24 +121,6 @@ public final class CharacterStorage {
         }
         CharacterSkin effective = skin.isCustom() && !Files.isRegularFile(file) ? CharacterSkin.ACCOUNT : skin;
         writeMeta(require(id).withSkin(effective));
-    }
-
-    /**
-     * Gives a character its mode. A mode can only be set once; it stays fixed so that, for example, a
-     * hardcore character cannot be turned into a survival one afterwards.
-     *
-     * @throws IllegalStateException if the character already has a different mode
-     */
-    public void setMode(UUID id, CharacterMode mode) {
-        CharacterMeta meta = require(id);
-        CharacterMode current = meta.modeChoice();
-        if (current == mode) {
-            return;
-        }
-        if (current != null) {
-            throw new IllegalStateException("Character " + id + " is already " + current);
-        }
-        writeMeta(meta.withMode(mode));
     }
 
     /** Where an imported skin image is kept; only present for {@link CharacterSkin#CUSTOM}. */
@@ -242,12 +216,12 @@ public final class CharacterStorage {
                 withSkin && meta.skinChoice().isCustom() ? readOptional(skinFile(id)) : null));
     }
 
-    /** Takes the name and skin of a newer copy kept elsewhere, and its mode if this one has none yet. */
+    /** Takes the name and skin of a newer copy kept elsewhere. */
     public void importIdentity(CharacterBundle incoming) {
         CharacterMeta from = incoming.meta();
         CharacterMeta local = require(from.id());
         writeMeta(new CharacterMeta(local.id(), sanitizeName(from.name()), local.createdAt(), local.lastPlayedAt(),
-                from.skin(), from.slim(), local.mode() != null ? local.mode() : from.mode(), local.savedAt()));
+                from.skin(), from.slim(), local.gamemode(), local.savedAt()));
         importSkinImage(incoming);
     }
 
@@ -280,7 +254,7 @@ public final class CharacterStorage {
         if (keepIdentity && existing.isPresent()) {
             CharacterMeta local = existing.get();
             meta = new CharacterMeta(id, local.name(), local.createdAt(), incoming.lastPlayedAt(),
-                    local.skin(), local.slim(), incoming.mode() != null ? incoming.mode() : local.mode(), incoming.savedAt());
+                    local.skin(), local.slim(), local.gamemode(), incoming.savedAt());
         }
         writeMeta(meta);
         backupPlayerData(id);
@@ -441,7 +415,7 @@ public final class CharacterStorage {
         }
         try {
             CharacterMeta meta = GSON.fromJson(Files.readString(file, StandardCharsets.UTF_8), CharacterMeta.class);
-            if (meta == null || meta.id() == null || meta.name() == null
+            if (meta == null || meta.id() == null || meta.name() == null || meta.gamemode() == null
                     || !meta.id().toString().equals(dir.getFileName().toString())) {
                 LOGGER.warn("Ignoring invalid character metadata in {}", dir);
                 return Optional.empty();

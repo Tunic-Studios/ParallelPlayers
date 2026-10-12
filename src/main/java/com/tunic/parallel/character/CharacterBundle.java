@@ -1,5 +1,6 @@
 package com.tunic.parallel.character;
 
+import io.netty.handler.codec.DecoderException;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.codec.StreamCodec;
 import org.jspecify.annotations.Nullable;
@@ -35,10 +36,18 @@ public record CharacterBundle(CharacterMeta meta, byte @Nullable [] playerData, 
                 buf.writeNullable(bundle.skinImage(), (out, bytes) -> out.writeByteArray(bytes));
             },
             buf -> new CharacterBundle(
-                    CharacterStorage.GSON.fromJson(buf.readUtf(MAX_FILE_SIZE), CharacterMeta.class),
+                    readMeta(buf),
                     buf.readNullable(in -> in.readByteArray(MAX_FILE_SIZE)),
                     buf.readNullable(in -> in.readByteArray(MAX_FILE_SIZE)),
                     buf.readNullable(in -> in.readUtf(MAX_FILE_SIZE)),
                     buf.readNullable(in -> in.readUtf(MAX_FILE_SIZE)),
                     buf.readNullable(in -> in.readByteArray(MAX_SKIN_SIZE))));
+
+    private static CharacterMeta readMeta(FriendlyByteBuf buf) {
+        CharacterMeta meta = CharacterStorage.GSON.fromJson(buf.readUtf(MAX_FILE_SIZE), CharacterMeta.class);
+        if (meta == null || meta.id() == null || meta.name() == null || meta.gamemode() == null) {
+            throw new DecoderException("Incomplete character metadata");
+        }
+        return meta;
+    }
 }

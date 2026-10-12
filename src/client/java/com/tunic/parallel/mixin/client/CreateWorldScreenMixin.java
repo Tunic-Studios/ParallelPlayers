@@ -1,6 +1,6 @@
 package com.tunic.parallel.mixin.client;
 
-import com.tunic.parallel.character.CharacterMode;
+import com.tunic.parallel.character.CharacterGamemode;
 import com.tunic.parallel.character.CharacterRules;
 import com.tunic.parallel.config.ServerConfig;
 import com.tunic.parallel.client.screen.NewWorldCharacterScreen;
@@ -43,7 +43,7 @@ public abstract class CreateWorldScreenMixin {
         if (!ServerConfig.get().charactersEnabled) {
             return;
         }
-        CharacterMode world = CharacterMode.ofWorld(
+        CharacterGamemode world = CharacterGamemode.ofWorld(
                 this.uiState.isHardcore(), this.uiState.getGameMode().gameType, this.uiState.isAllowCommands());
         if (CharacterRules.hasUsableCharacter(world)) {
             return;

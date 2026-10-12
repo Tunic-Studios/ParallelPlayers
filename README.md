@@ -1,6 +1,6 @@
 # Parallel Players
 
-Adds Terraria-style characters for Minecraft. A character is a player of its own (inventory, experience,
+Adds Terraria-style character modularity to Minecraft. A character is a player of its own (inventory, experience,
 health, statistics, advancements, name and skin) that you can take into any world. Pick a character
 before you play and it comes with you or switch to another and pick up where that one left off.
 
@@ -21,25 +21,25 @@ singleplayer worlds and on servers that have the mod installed.
   at spawn
 
 ### Your account
-- Your Minecraft: Java Edition account is always the first entry in the list, and it is what you play as by default.
-- Playing as your account works like the game without the mod: each world keeps its own player individual data.
+- Your Minecraft: Java Edition account is always the first entry in the list, and its what you play as by default.
+- Playing as your account works like the game without the mod, each world keeps its own player individual data.
 - Your account's data in a world is set aside while a character plays there and is given back when you
   play that world as your account again.
 
 ### Custom skins
-- Giving a character their own skin: your account's skin, one of the game's default skins, or any skin you may want to import.
+- Giving a character their own skin either your active account skin, one of the default skins, or any skin you may want to import.
 
-### Modes
-- Every character is Survival, Creative or Hardcore, chosen when it is created and stays fixed after that.
+### Gamemodes
+- Every character is sorted in a gamemode being Survival, Creative or Hardcore, chosen when it is created and stays fixed.
 - A character can only enter worlds of its own kind, so creative progress never leaks into survival for example:
-  - **Survival** characters join survival worlds with cheats off
-  - **Creative** characters join worlds that are Creative or have cheats on
+  - **Survival** characters join survival worlds with cheats disabled
+  - **Creative** characters join worlds that are Creative or have cheats enabled
   - **Hardcore** characters join only hardcore worlds
-- Opening a world that does not suit your character takes you to character select, creating a world also offers to make a character for it.
+- Opening a world that does not suit your selected character takes you to character selection, creating a world also offers to make a character for it.
 
 ### In-game
-- Your character's name is used in chat, tab list, join, death and advancement messages, hovering over it
-  shows the player's username.
+- Your character's name is used in chat, tab list, name tag, join, death and advancement messages, hovering over it
+  will show the original player's username.
 
 ### Character backups
 - Each character's player data is backed up automatically, keeping up to 5 copies by default, this is customizable!
@@ -57,13 +57,13 @@ singleplayer worlds and on servers that have the mod installed.
 ### Settings and permissions
 - A settings screen, opened from [Mod Menu](https://modrinth.com/mod/modmenu) with various options to customize parallel players.
 - Settings are kept in `config/parallel/client.json` and `config/parallel/server.json`.
-- Servers can turn characters or mode rules off in `server.json`, and control who may use them with a
+- Servers can turn characters or gamemode rules off in `server.json`, and control who may use them with a
   permissions mod such as [LuckPerms](https://luckperms.net/):
 
-  | Permission                 | Default  | Allows                                          |
-  |----------------------------|----------|-------------------------------------------------|
-  | `parallel.characters.use`  | everyone | playing as a character                          |
-  | `parallel.modes.bypass`    | nobody   | taking a character into a world of another mode |
+  | Permission                    | Default  | Allows                                              |
+  |-------------------------------|----------|-----------------------------------------------------|
+  | `parallel.characters.use`     | everyone | playing as a character                              |
+  | `parallel.gamemodes.bypass`   | nobody   | taking a character into a world of another gamemode |
 
 ## Where things are kept
 

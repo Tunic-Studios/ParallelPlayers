@@ -1,7 +1,7 @@
 package com.tunic.parallel.mixin.client;
 
 import com.mojang.serialization.Dynamic;
-import com.tunic.parallel.character.CharacterMode;
+import com.tunic.parallel.character.CharacterGamemode;
 import com.tunic.parallel.character.CharacterRules;
 import com.tunic.parallel.client.screen.CharactersScreen;
 import net.minecraft.client.Minecraft;
@@ -38,7 +38,7 @@ public abstract class WorldOpenFlowsMixin {
             this.parallel$characterHandled = false;
             return;
         }
-        CharacterMode world = CharacterMode.ofWorld(summary.isHardcore(), summary.getGameMode(), summary.hasCommands());
+        CharacterGamemode world = CharacterGamemode.ofWorld(summary.isHardcore(), summary.getGameMode(), summary.hasCommands());
         CharacterRules.check(world).ifPresent(refusal -> {
             ci.cancel();
             // Back to character select with the incompatible characters greyed out. The world stays open

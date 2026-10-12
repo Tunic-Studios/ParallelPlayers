@@ -3,7 +3,7 @@ package com.tunic.parallel.client.screen;
 import com.tunic.parallel.ParallelPlayers;
 import com.tunic.parallel.character.CharacterLoadout;
 import com.tunic.parallel.character.CharacterMeta;
-import com.tunic.parallel.character.CharacterMode;
+import com.tunic.parallel.character.CharacterGamemode;
 import com.tunic.parallel.character.CharacterStorage;
 import com.tunic.parallel.client.CharacterSkins;
 import net.minecraft.ChatFormatting;
@@ -49,8 +49,8 @@ public class CharactersScreen extends Screen {
     private static final int DISABLED_COLOR = 0xFF555555;
     private static final int PLAYTIME_COLOR = 0xFF555555;
     private static final int DISABLED_ICON_TINT = 0xFF606060;
-    private static final int MODE_ICON_SIZE = 8;
-    private static final int MODE_ICON_GAP = 3;
+    private static final int GAMEMODE_ICON_SIZE = 8;
+    private static final int GAMEMODE_ICON_GAP = 3;
 
     private final Screen parent;
     private final HeaderAndFooterLayout layout = new HeaderAndFooterLayout(this, 8 + 9 + 8 + 9 + 4, 60);
@@ -78,7 +78,7 @@ public class CharactersScreen extends Screen {
      * @param onChosen continues opening the world; called after a compatible character became active
      * @param onCancel releases the world; called when the player backs out
      */
-    public record WorldRequirement(CharacterMode world, Runnable onChosen, Runnable onCancel) {
+    public record WorldRequirement(CharacterGamemode world, Runnable onChosen, Runnable onCancel) {
     }
 
     private final @Nullable WorldRequirement requirement;
@@ -249,13 +249,13 @@ public class CharactersScreen extends Screen {
 
     private void createCharacter() {
         Component title = Component.translatable("parallel.characters.name.new");
-        // For a world that needs a certain kind of character the mode is not up to the player.
-        boolean askMode = this.requirement == null;
-        this.minecraft.gui.setScreen(new CharacterNameScreen(this, title, "", CommonComponents.GUI_CONTINUE, askMode, (name, chosenMode) ->
+        // For a world that needs a certain kind of character the gamemode is not up to the player.
+        boolean askGamemode = this.requirement == null;
+        this.minecraft.gui.setScreen(new CharacterNameScreen(this, title, "", CommonComponents.GUI_CONTINUE, askGamemode, (name, chosenGamemode) ->
                 // Second step: choose the skin; the character only exists once that is confirmed.
                 this.minecraft.gui.setScreen(new CharacterSkinScreen(this, name, null, this.accountSkin, result -> {
-                    CharacterMode mode = this.requirement != null ? this.requirement.world() : chosenMode;
-                    CharacterMeta created = ParallelPlayers.characters().create(name, mode, result.skin(), result.image());
+                    CharacterGamemode gamemode = this.requirement != null ? this.requirement.world() : chosenGamemode;
+                    CharacterMeta created = ParallelPlayers.characters().create(name, gamemode, result.skin(), result.image());
                     CharacterSkins.invalidate(created.id());
                     if (this.requirement != null) {
                         this.choose(created.id());
@@ -289,7 +289,7 @@ public class CharactersScreen extends Screen {
             return;
         }
         UUID id = selected.meta.id();
-        this.minecraft.gui.setScreen(new CharacterNameScreen(this, Component.translatable("parallel.characters.name.rename"), selected.meta.name(), (name, mode) -> {
+        this.minecraft.gui.setScreen(new CharacterNameScreen(this, Component.translatable("parallel.characters.name.rename"), selected.meta.name(), (name, gamemode) -> {
             ParallelPlayers.characters().rename(id, name);
             this.refresh();
         }));
@@ -358,7 +358,7 @@ public class CharactersScreen extends Screen {
 
         @Override
         int leftGutter() {
-            return MODE_ICON_SIZE + MODE_ICON_GAP;
+            return GAMEMODE_ICON_SIZE + GAMEMODE_ICON_GAP;
         }
 
         @Override
@@ -395,9 +395,8 @@ public class CharactersScreen extends Screen {
             this.active = active;
             this.playTimeTicks = meta == null ? CharactersScreen.this.accountPlayTimeTicks() : ParallelPlayers.characters().playTimeTicks(meta.id());
             WorldRequirement requirement = CharactersScreen.this.requirement;
-            // The account has no mode: without a character every world uses its own player data.
-            CharacterMode mode = meta == null ? null : meta.modeChoice();
-            this.enabled = requirement == null || mode == null || mode.canJoin(requirement.world());
+            // The account has no gamemode: without a character every world uses its own player data.
+            this.enabled = requirement == null || meta == null || meta.gamemode().canJoin(requirement.world());
         }
 
         @Override
@@ -438,21 +437,16 @@ public class CharactersScreen extends Screen {
         }
 
         /**
-         * The character's mode as an icon just left of the row, named in a tooltip on hover; nothing for a
-         * character that has none yet.
+         * The character's gamemode as an icon just left of the row, named in a tooltip on hover.
          */
-        private void extractModeIcon(GuiGraphicsExtractor graphics, int mouseX, int mouseY) {
-            CharacterMode mode = this.meta == null ? null : this.meta.modeChoice();
-            if (mode == null) {
-                return;
-            }
-            int x = this.getX() - MODE_ICON_GAP - MODE_ICON_SIZE;
-            int y = this.getY() + (this.getHeight() - MODE_ICON_SIZE) / 2;
-            Identifier sprite = Identifier.fromNamespaceAndPath(ParallelPlayers.MOD_ID, "mode/" + mode.id());
-            graphics.blitSprite(RenderPipelines.GUI_TEXTURED, sprite, x, y, MODE_ICON_SIZE, MODE_ICON_SIZE,
+        private void extractGamemodeIcon(GuiGraphicsExtractor graphics, int mouseX, int mouseY, CharacterGamemode gamemode) {
+            int x = this.getX() - GAMEMODE_ICON_GAP - GAMEMODE_ICON_SIZE;
+            int y = this.getY() + (this.getHeight() - GAMEMODE_ICON_SIZE) / 2;
+            Identifier sprite = Identifier.fromNamespaceAndPath(ParallelPlayers.MOD_ID, "gamemode/" + gamemode.id());
+            graphics.blitSprite(RenderPipelines.GUI_TEXTURED, sprite, x, y, GAMEMODE_ICON_SIZE, GAMEMODE_ICON_SIZE,
                     this.enabled ? -1 : DISABLED_ICON_TINT);
-            if (mouseX >= x && mouseX < x + MODE_ICON_SIZE && mouseY >= y && mouseY < y + MODE_ICON_SIZE) {
-                graphics.setTooltipForNextFrame(Component.translatable(mode.translationKey()), mouseX, mouseY);
+            if (mouseX >= x && mouseX < x + GAMEMODE_ICON_SIZE && mouseY >= y && mouseY < y + GAMEMODE_ICON_SIZE) {
+                graphics.setTooltipForNextFrame(Component.translatable(gamemode.translationKey()), mouseX, mouseY);
             }
         }
 
@@ -470,9 +464,9 @@ public class CharactersScreen extends Screen {
                 this.extractPlayTime(graphics, x, y + 22);
                 return;
             }
-            this.extractModeIcon(graphics, mouseX, mouseY);
+            this.extractGamemodeIcon(graphics, mouseX, mouseY, this.meta.gamemode());
             int detailColor = this.enabled ? SUBTEXT_COLOR : DISABLED_COLOR;
-            if (!this.enabled && CharactersScreen.this.requirement != null && this.meta.modeChoice() != null) {
+            if (!this.enabled && CharactersScreen.this.requirement != null) {
                 // Say why it is greyed out, in the line that normally holds the last-played time.
                 Component reason = Component.translatable("parallel.characters.cannot_join",
                         Component.translatable(CharactersScreen.this.requirement.world().translationKey()));

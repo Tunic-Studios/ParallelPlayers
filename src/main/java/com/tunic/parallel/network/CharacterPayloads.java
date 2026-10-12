@@ -2,6 +2,7 @@ package com.tunic.parallel.network;
 
 import com.tunic.parallel.ParallelPlayers;
 import com.tunic.parallel.character.CharacterBundle;
+import com.tunic.parallel.character.CharacterGamemode;
 import com.tunic.parallel.character.CharacterSkin;
 import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
 import net.minecraft.core.UUIDUtil;
@@ -54,15 +55,15 @@ public final class CharacterPayloads {
     /**
      * Server to client, while connecting: which character will you play as?
      *
-     * @param worldMode the id of the {@link com.tunic.parallel.character.CharacterMode} a character needs to join,
-     *                  or {@code null} when any character may (mode rules are off, or the player may bypass them)
+     * @param worldGamemode the gamemode a character needs to join, or {@code null} when any character may
+     *                      (gamemode rules are off, or the player may bypass them)
      */
-    public record Request(@Nullable String worldMode) implements CustomPacketPayload {
+    public record Request(@Nullable CharacterGamemode worldGamemode) implements CustomPacketPayload {
 
         public static final Type<Request> TYPE = payloadType("request_character");
         public static final StreamCodec<FriendlyByteBuf, Request> STREAM_CODEC = StreamCodec.of(
-                (buf, payload) -> buf.writeNullable(payload.worldMode(), FriendlyByteBuf::writeUtf),
-                buf -> new Request(buf.readNullable(FriendlyByteBuf::readUtf)));
+                (buf, payload) -> buf.writeNullable(payload.worldGamemode(), CharacterGamemode.STREAM_CODEC),
+                buf -> new Request(buf.readNullable(CharacterGamemode.STREAM_CODEC)));
 
         @Override
         public @NonNull Type<Request> type() {

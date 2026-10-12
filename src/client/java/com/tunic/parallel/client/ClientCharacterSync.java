@@ -2,8 +2,7 @@ package com.tunic.parallel.client;
 
 import com.tunic.parallel.ParallelPlayers;
 import com.tunic.parallel.character.CharacterBundle;
-import com.tunic.parallel.character.CharacterMeta;
-import com.tunic.parallel.character.CharacterMode;
+import com.tunic.parallel.character.CharacterGamemode;
 import com.tunic.parallel.client.screen.CharactersScreen;
 import com.tunic.parallel.mixin.client.ClientCommonPacketListenerImplAccessor;
 import com.tunic.parallel.network.CharacterPayloads;
@@ -161,7 +160,7 @@ public final class ClientCharacterSync {
      */
     @SuppressWarnings("resource")
     private static void answerRequest(CharacterPayloads.Request request, ClientConfigurationNetworking.Context context) {
-        CharacterMode world = CharacterMode.byId(request.worldMode());
+        CharacterGamemode world = request.worldGamemode();
         if (world == null || activeCanJoin(world)) {
             context.responseSender().sendPacket(new CharacterPayloads.Upload(activeCharacter()));
             return;
@@ -184,13 +183,11 @@ public final class ClientCharacterSync {
     }
 
     /** Whether the active character may join a world of this kind; the account always may. */
-    private static boolean activeCanJoin(CharacterMode world) {
-        CharacterMode mode = ParallelPlayers.activeCharacter().get()
+    private static boolean activeCanJoin(CharacterGamemode world) {
+        return ParallelPlayers.activeCharacter().get()
                 .flatMap(ParallelPlayers.characters()::get)
-                .map(CharacterMeta::modeChoice)
-                .orElse(null);
-        // A character without a mode yet takes the mode of the first world it joins.
-        return mode == null || mode.canJoin(world);
+                .map(character -> character.gamemode().canJoin(world))
+                .orElse(true);
     }
 
     private static @Nullable CharacterBundle activeCharacter() {

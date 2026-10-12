@@ -2,7 +2,7 @@ package com.tunic.parallel.client.screen;
 
 import com.tunic.parallel.ParallelPlayers;
 import com.tunic.parallel.character.CharacterMeta;
-import com.tunic.parallel.character.CharacterMode;
+import com.tunic.parallel.character.CharacterGamemode;
 import com.tunic.parallel.client.CharacterSkins;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.MultiLineTextWidget;
@@ -13,17 +13,16 @@ import net.minecraft.network.chat.CommonComponents;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.entity.player.PlayerSkin;
 
-import java.util.Optional;
 import java.util.function.Supplier;
 
 /**
  * Shown when a new world is about to be created without a character that can play it. Offers to create
- * one of the world's mode, to play without a character, or to go back.
+ * one of the world's gamemode, to play without a character, or to go back.
  */
 public class NewWorldCharacterScreen extends Screen {
 
     private final Screen parent;
-    private final CharacterMode world;
+    private final CharacterGamemode world;
     private final Runnable onContinue;
     private final LinearLayout layout = LinearLayout.vertical().spacing(8);
 
@@ -32,7 +31,7 @@ public class NewWorldCharacterScreen extends Screen {
      * @param world      the kind of world being created
      * @param onContinue creates the world; called once the character question is settled
      */
-    public NewWorldCharacterScreen(Screen parent, CharacterMode world, Runnable onContinue) {
+    public NewWorldCharacterScreen(Screen parent, CharacterGamemode world, Runnable onContinue) {
         super(Component.translatable("parallel.newworld.title"));
         this.parent = parent;
         this.world = world;
@@ -48,9 +47,8 @@ public class NewWorldCharacterScreen extends Screen {
         // A selected character that does not fit is named; with none selected it is a plain note.
         Component message = ParallelPlayers.activeCharacter().get()
                 .flatMap(id -> ParallelPlayers.characters().get(id))
-                .flatMap(character -> Optional.ofNullable(character.modeChoice())
-                        .map(mode -> Component.translatable("parallel.newworld.mismatch",
-                                character.name(), Component.translatable(mode.translationKey()), worldName)))
+                .map(character -> Component.translatable("parallel.newworld.mismatch",
+                        character.name(), Component.translatable(character.gamemode().translationKey()), worldName))
                 .orElseGet(() -> Component.translatable("parallel.newworld.message", worldName));
         this.layout.addChild(new MultiLineTextWidget(message, this.font).setMaxWidth(this.width - 50).setMaxRows(10).setCentered(true));
 
@@ -75,10 +73,10 @@ public class NewWorldCharacterScreen extends Screen {
         this.minecraft.gui.setScreen(this.parent);
     }
 
-    /** Name, then skin; the mode is fixed to what the world needs. Returns here if either is cancelled. */
+    /** Name, then skin; the gamemode is fixed to what the world needs. Returns here if either is cancelled. */
     private void createCharacter() {
         Component title = Component.translatable("parallel.characters.name.new");
-        this.minecraft.gui.setScreen(new CharacterNameScreen(this, title, "", CommonComponents.GUI_CONTINUE, false, (name, ignoredMode) -> {
+        this.minecraft.gui.setScreen(new CharacterNameScreen(this, title, "", CommonComponents.GUI_CONTINUE, false, (name, ignoredGamemode) -> {
             Supplier<PlayerSkin> account = this.minecraft.getSkinManager().createLookup(this.minecraft.getGameProfile(), false);
             this.minecraft.gui.setScreen(new CharacterSkinScreen(this, name, null, account, result -> {
                 CharacterMeta created = ParallelPlayers.characters().create(name, this.world, result.skin(), result.image());

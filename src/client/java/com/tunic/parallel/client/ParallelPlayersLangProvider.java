@@ -59,20 +59,20 @@ public class ParallelPlayersLangProvider extends FabricLanguageProvider {
         builder.add("parallel.skin.error.too_large", "That file is too large to be a skin");
         builder.add("parallel.skin.error.read", "Could not read that file");
 
-        // Character modes
-        builder.add("parallel.mode.label", "Mode");
-        builder.add("parallel.mode.survival", "Survival");
-        builder.add("parallel.mode.creative", "Creative");
-        builder.add("parallel.mode.hardcore", "Hardcore");
-        builder.add("parallel.mode.survival.description", "Can only join survival worlds with cheats off.");
-        builder.add("parallel.mode.creative.description", "Can only join worlds that are Creative or have cheats enabled.");
-        builder.add("parallel.mode.hardcore.description", "Can only join hardcore worlds.");
-        builder.add("parallel.mode.locked", "The mode cannot be changed after the character is created.");
-        builder.add("parallel.mode.blocked.title", "Wrong character for this world");
-        builder.add("parallel.mode.blocked.message", "%s is a %s character, but this is a %s world.");
-        builder.add("parallel.mode.blocked.suggest", "Characters that can join: %s");
-        builder.add("parallel.mode.blocked.server", "Choose a %s character in the Characters menu, or switch to your account, then join again.");
-        builder.add("parallel.mode.blocked.none", "You have no %s characters yet. Create one in the Characters menu, or switch to your account.");
+        // Character gamemodes
+        builder.add("parallel.gamemode.label", "Gamemode");
+        builder.add("parallel.gamemode.survival", "Survival");
+        builder.add("parallel.gamemode.creative", "Creative");
+        builder.add("parallel.gamemode.hardcore", "Hardcore");
+        builder.add("parallel.gamemode.survival.description", "Can only join survival worlds with cheats off.");
+        builder.add("parallel.gamemode.creative.description", "Can only join worlds that are Creative or have cheats enabled.");
+        builder.add("parallel.gamemode.hardcore.description", "Can only join hardcore worlds.");
+        builder.add("parallel.gamemode.locked", "The gamemode cannot be changed after the character is created.");
+        builder.add("parallel.gamemode.blocked.title", "Wrong character for this world");
+        builder.add("parallel.gamemode.blocked.message", "%s is a %s character, but this is a %s world.");
+        builder.add("parallel.gamemode.blocked.suggest", "Characters that can join: %s");
+        builder.add("parallel.gamemode.blocked.server", "Choose a %s character in the Characters menu, or switch to your account, then join again.");
+        builder.add("parallel.gamemode.blocked.none", "You have no %s characters yet. Create one in the Characters menu, or switch to your account.");
 
         // Character select when a world needs a certain kind of character
         builder.add("parallel.characters.choose_for_world", "Choose a %s character to enter this world");
@@ -109,8 +109,8 @@ public class ParallelPlayersLangProvider extends FabricLanguageProvider {
         builder.add("parallel.settings.section.worlds.note", "Applies to your singleplayer worlds and LAN games you host. Servers have their own config/parallel/server.json.");
         builder.add("parallel.settings.characters_enabled", "Characters");
         builder.add("parallel.settings.characters_enabled.tooltip", "When off, every world uses its own player data, as it would without the mod.");
-        builder.add("parallel.settings.enforce_modes", "Mode Rules");
-        builder.add("parallel.settings.enforce_modes.tooltip", "Characters can only enter worlds of their own mode: survival, creative or hardcore.");
+        builder.add("parallel.settings.enforce_gamemodes", "Gamemode Rules");
+        builder.add("parallel.settings.enforce_gamemodes.tooltip", "Characters can only enter worlds of their own gamemode: survival, creative or hardcore.");
 
         // Leaving a server while playing a character
         builder.add("parallel.leaving.saving", "Saving your character...");

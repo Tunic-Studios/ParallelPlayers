@@ -1,7 +1,11 @@
 package com.tunic.parallel.character;
 
+import com.google.gson.annotations.SerializedName;
+import io.netty.buffer.ByteBuf;
+import net.minecraft.network.codec.ByteBufCodecs;
+import net.minecraft.network.codec.StreamCodec;
+import net.minecraft.util.ByIdMap;
 import net.minecraft.world.level.GameType;
-import org.jspecify.annotations.Nullable;
 
 import java.util.Locale;
 
@@ -9,10 +13,13 @@ import java.util.Locale;
  * The rules a character plays by. A character may only enter worlds of its own kind, so a survival
  * character can never be taken into a creative world, and a hardcore character stays in hardcore worlds.
  */
-public enum CharacterMode {
-    SURVIVAL,
-    CREATIVE,
-    HARDCORE;
+public enum CharacterGamemode {
+    @SerializedName("survival") SURVIVAL,
+    @SerializedName("creative") CREATIVE,
+    @SerializedName("hardcore") HARDCORE;
+
+    public static final StreamCodec<ByteBuf, CharacterGamemode> STREAM_CODEC = ByteBufCodecs.idMapper(
+            ByIdMap.continuous(Enum::ordinal, values(), ByIdMap.OutOfBoundsStrategy.ZERO), Enum::ordinal);
 
     /**
      * Which kind a world is, from its settings:
@@ -23,41 +30,28 @@ public enum CharacterMode {
      *   <li>{@link #SURVIVAL} otherwise.</li>
      * </ul>
      */
-    public static CharacterMode ofWorld(boolean hardcore, GameType defaultGameType, boolean cheatsAllowed) {
+    public static CharacterGamemode ofWorld(boolean hardcore, GameType defaultGameType, boolean cheatsAllowed) {
         if (hardcore) {
             return HARDCORE;
         }
         return defaultGameType == GameType.CREATIVE || cheatsAllowed ? CREATIVE : SURVIVAL;
     }
 
-    /** Whether a character of this mode may join a world of the given kind. */
-    public boolean canJoin(CharacterMode world) {
+    /** Whether a character of this gamemode may join a world of the given kind. */
+    public boolean canJoin(CharacterGamemode world) {
         return this == world;
     }
 
-    /** Key of the lower-case name used in the saved data and translation keys. */
+    /** The lower-case name used in the saved data, sprites and translation keys. */
     public String id() {
         return name().toLowerCase(Locale.ROOT);
     }
 
     public String translationKey() {
-        return "parallel.mode." + id();
+        return "parallel.gamemode." + id();
     }
 
     public String descriptionKey() {
-        return "parallel.mode." + id() + ".description";
-    }
-
-    /** Parses a saved mode; unknown or missing values read as "no mode". */
-    public static @Nullable CharacterMode byId(@Nullable String id) {
-        if (id == null) {
-            return null;
-        }
-        for (CharacterMode mode : values()) {
-            if (mode.id().equals(id)) {
-                return mode;
-            }
-        }
-        return null;
+        return "parallel.gamemode." + id() + ".description";
     }
 }

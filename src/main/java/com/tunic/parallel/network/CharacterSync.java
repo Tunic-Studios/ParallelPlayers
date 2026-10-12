@@ -4,7 +4,7 @@ import com.tunic.parallel.ParallelPlayers;
 import com.tunic.parallel.character.CharacterBundle;
 import com.tunic.parallel.character.CharacterMeta;
 import com.tunic.parallel.character.CharacterSkin;
-import com.tunic.parallel.character.CharacterMode;
+import com.tunic.parallel.character.CharacterGamemode;
 import com.tunic.parallel.character.CharacterSwap;
 import com.tunic.parallel.config.ParallelPermissions;
 import com.tunic.parallel.config.ServerConfig;
@@ -134,10 +134,10 @@ public final class CharacterSync {
         }
         // Which kind of world a character must be for, so the client can let the player pick one that fits.
         WorldData data = server.getWorldData();
-        String worldMode = ServerConfig.get().enforceModes && !ParallelPermissions.bypassesModes(player)
-                ? CharacterMode.ofWorld(data.isHardcore(), data.getGameType(), data.isAllowCommands()).id()
+        CharacterGamemode worldGamemode = ServerConfig.get().enforceGamemodes && !ParallelPermissions.bypassesGamemodes(player)
+                ? CharacterGamemode.ofWorld(data.isHardcore(), data.getGameType(), data.isAllowCommands())
                 : null;
-        listener.addTask(new AskForCharacter(player.id(), worldMode));
+        listener.addTask(new AskForCharacter(player.id(), worldGamemode));
     }
 
     @SuppressWarnings("resource")
@@ -156,12 +156,12 @@ public final class CharacterSync {
         });
     }
 
-    private record AskForCharacter(UUID player, @Nullable String worldMode) implements ConfigurationTask {
+    private record AskForCharacter(UUID player, @Nullable CharacterGamemode worldGamemode) implements ConfigurationTask {
 
         @Override
         public void start(@NonNull Consumer<Packet<?>> connection) {
             ASKED.add(this.player);
-            connection.accept(ServerConfigurationNetworking.createClientboundPacket(new CharacterPayloads.Request(this.worldMode)));
+            connection.accept(ServerConfigurationNetworking.createClientboundPacket(new CharacterPayloads.Request(this.worldGamemode)));
         }
 
         @Override

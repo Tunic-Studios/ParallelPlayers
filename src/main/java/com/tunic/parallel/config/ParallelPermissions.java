@@ -13,11 +13,11 @@ public final class ParallelPermissions {
     /** May play as a character. Default: everyone. */
     public static final String USE_CHARACTERS = "parallel.characters.use";
     /**
-     * May take a character into a world of another mode. Default: nobody, not even operators, since in
+     * May take a character into a world of another gamemode. Default: nobody, not even operators, since in
      * singleplayer the owner of a world with cheats is an operator, and the rule is what keeps survival
      * characters out of those worlds.
      */
-    public static final String BYPASS_MODES = "parallel.modes.bypass";
+    public static final String BYPASS_GAMEMODES = "parallel.gamemodes.bypass";
 
     private ParallelPermissions() {
     }
@@ -30,12 +30,12 @@ public final class ParallelPermissions {
         return Permissions.check(player, USE_CHARACTERS, true).join();
     }
 
-    public static boolean bypassesModes(ServerPlayer player) {
-        return Permissions.check(player, BYPASS_MODES, false);
+    public static boolean bypassesGamemodes(ServerPlayer player) {
+        return Permissions.check(player, BYPASS_GAMEMODES, false);
     }
 
-    /** {@link #bypassesModes(ServerPlayer)} while the player is still connecting; see {@link #canUseCharacters}. */
-    public static boolean bypassesModes(NameAndId player) {
-        return Permissions.check(player, BYPASS_MODES, false).join();
+    /** {@link #bypassesGamemodes(ServerPlayer)} while the player is still connecting; see {@link #canUseCharacters}. */
+    public static boolean bypassesGamemodes(NameAndId player) {
+        return Permissions.check(player, BYPASS_GAMEMODES, false).join();
     }
 }

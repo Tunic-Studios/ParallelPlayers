@@ -65,8 +65,8 @@ public class SettingsScreen extends OptionsSubScreen {
         this.list.addSmall(
                 this.toggle("parallel.settings.characters_enabled", note, this.server.charactersEnabled,
                         value -> this.server.charactersEnabled = value),
-                this.toggle("parallel.settings.enforce_modes", note, this.server.enforceModes,
-                        value -> this.server.enforceModes = value));
+                this.toggle("parallel.settings.enforce_gamemodes", note, this.server.enforceGamemodes,
+                        value -> this.server.enforceGamemodes = value));
     }
 
     @Override

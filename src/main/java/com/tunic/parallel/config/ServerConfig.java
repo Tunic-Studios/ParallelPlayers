@@ -15,8 +15,8 @@ public final class ServerConfig {
     /** Whether players can play as characters here. When off, every world uses its own player data. */
     public boolean charactersEnabled = true;
 
-    /** Whether a character may only enter worlds of its own mode (survival, creative or hardcore). */
-    public boolean enforceModes = true;
+    /** Whether a character may only enter worlds of its own gamemode (survival, creative or hardcore). */
+    public boolean enforceGamemodes = true;
 
     public static ServerConfig get() {
         return current;

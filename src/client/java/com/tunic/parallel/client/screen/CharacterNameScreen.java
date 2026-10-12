@@ -1,6 +1,6 @@
 package com.tunic.parallel.client.screen;
 
-import com.tunic.parallel.character.CharacterMode;
+import com.tunic.parallel.character.CharacterGamemode;
 import com.tunic.parallel.character.CharacterNames;
 import com.tunic.parallel.client.MojangNameCheck;
 import net.minecraft.client.gui.components.*;
@@ -16,7 +16,7 @@ import java.util.Optional;
 
 /**
  * Asks for a character name, used both when creating and renaming a character. When creating, it also
- * asks for the character's mode, which cannot be changed afterwards.
+ * asks for the character's gamemode, which cannot be changed afterwards.
  *
  * <p>The name has to follow {@link CharacterNames}' rules, and is checked with Mojang (see
  * {@link MojangNameCheck}) before it is accepted.
@@ -30,8 +30,8 @@ public class CharacterNameScreen extends Screen {
     private final String initialName;
     private final Callback onConfirm;
     private final Component confirmLabel;
-    private final boolean askMode;
-    private CharacterMode mode = CharacterMode.SURVIVAL;
+    private final boolean askGamemode;
+    private CharacterGamemode gamemode = CharacterGamemode.SURVIVAL;
     private final LinearLayout layout = LinearLayout.vertical().spacing(8);
     private EditBox nameBox;
     private StringWidget status;
@@ -39,10 +39,10 @@ public class CharacterNameScreen extends Screen {
     /** Set while Mojang is being asked about the name. */
     private boolean checking;
 
-    /** Called with the confirmed name and, if the screen asked for one, the chosen mode (else {@code null}). */
+    /** Called with the confirmed name and, if the screen asked for one, the chosen gamemode (else {@code null}). */
     @FunctionalInterface
     public interface Callback {
-        void accept(String name, @Nullable CharacterMode mode);
+        void accept(String name, @Nullable CharacterGamemode gamemode);
     }
 
     /** A rename prompt: just a name. */
@@ -51,10 +51,10 @@ public class CharacterNameScreen extends Screen {
     }
 
     public CharacterNameScreen(Screen parent, Component title, String initialName, Component confirmLabel,
-                               boolean askMode, Callback onConfirm) {
+                               boolean askGamemode, Callback onConfirm) {
         super(title);
         this.confirmLabel = confirmLabel;
-        this.askMode = askMode;
+        this.askGamemode = askGamemode;
         this.parent = parent;
         this.initialName = initialName;
         this.onConfirm = onConfirm;
@@ -80,12 +80,12 @@ public class CharacterNameScreen extends Screen {
         // As wide as its text, at most as wide as the box, so the layout centres it under the box.
         this.status = this.layout.addChild(new StringWidget(200, 9, Component.empty(), this.font).setMaxWidth(200));
 
-        if (this.askMode) {
-            this.layout.addChild(CycleButton.builder(value -> Component.translatable(value.translationKey()), this.mode)
-                    .withValues(CharacterMode.values())
+        if (this.askGamemode) {
+            this.layout.addChild(CycleButton.builder(value -> Component.translatable(value.translationKey()), this.gamemode)
+                    .withValues(CharacterGamemode.values())
                     .withTooltip(value -> Tooltip.create(Component.translatable(value.descriptionKey())
-                            .append("\n\n").append(Component.translatable("parallel.mode.locked"))))
-                    .create(0, 0, 200, 20, Component.translatable("parallel.mode.label"), (button, value) -> this.mode = value));
+                            .append("\n\n").append(Component.translatable("parallel.gamemode.locked"))))
+                    .create(0, 0, 200, 20, Component.translatable("parallel.gamemode.label"), (button, value) -> this.gamemode = value));
         }
 
         LinearLayout buttons = this.layout.addChild(LinearLayout.horizontal().spacing(4));
@@ -169,7 +169,7 @@ public class CharacterNameScreen extends Screen {
     private void accept(String name) {
         // Return first: the callback may open another screen, which must not be replaced afterwards.
         this.minecraft.gui.setScreen(this.parent);
-        this.onConfirm.accept(name, this.askMode ? this.mode : null);
+        this.onConfirm.accept(name, this.askGamemode ? this.gamemode : null);
     }
 
     @Override
