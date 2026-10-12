@@ -13,36 +13,56 @@ import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
 import net.fabricmc.loader.api.FabricLoader;
 
 import java.nio.file.Path;
+import java.util.Objects;
+import java.util.UUID;
+import java.util.function.Supplier;
 
 public class ParallelPlayers implements ModInitializer {
 
     public static final String MOD_ID = "parallel";
 
-    /** Folder in the game directory holding every character and the active-character file. */
+    /**
+     * Folder in the game directory holding a folder per account, named by its UUID, with that account's
+     * characters and active-character file. Accounts on the same game folder each have their own characters.
+     */
     private static final String FOLDER = "characters";
     private static final String ACTIVE_FILE = "active_character.txt";
 
+    /** The UUID of the account playing on this client; set by the client, which is the only side with storage. */
+    private static Supplier<UUID> account = () -> {
+        throw new IllegalStateException("Character storage is only available on the client");
+    };
+    /** The account {@link #characterStorage} and {@link #activeCharacter} belong to. */
+    private static UUID storageAccount;
     private static CharacterStorage characterStorage;
     private static ActiveCharacter activeCharacter;
 
-    /** The global character storage, shared by every world. */
+    public static void setAccount(Supplier<UUID> account) {
+        ParallelPlayers.account = account;
+    }
+
+    /** The current account's character storage, shared by every world. */
     public static CharacterStorage characters() {
-        if (characterStorage == null) {
-            characterStorage = new CharacterStorage(characterDir());
-        }
+        ensureAccount();
         return characterStorage;
     }
 
-    /** The character the local player is playing as. */
+    /** The character the current account is playing as. */
     public static ActiveCharacter activeCharacter() {
-        if (activeCharacter == null) {
-            activeCharacter = new ActiveCharacter(characterDir().resolve(ACTIVE_FILE), characters());
-        }
+        ensureAccount();
         return activeCharacter;
     }
 
-    private static Path characterDir() {
-        return FabricLoader.getInstance().getGameDir().resolve(FOLDER);
+    /** Opens the current account's storage, again if the account changed since (account switcher mods). */
+    private static synchronized void ensureAccount() {
+        UUID current = Objects.requireNonNull(account.get());
+        if (current.equals(storageAccount)) {
+            return;
+        }
+        Path dir = FabricLoader.getInstance().getGameDir().resolve(FOLDER).resolve(current.toString());
+        characterStorage = new CharacterStorage(dir);
+        activeCharacter = new ActiveCharacter(dir.resolve(ACTIVE_FILE), characterStorage);
+        storageAccount = current;
     }
 
     @Override
