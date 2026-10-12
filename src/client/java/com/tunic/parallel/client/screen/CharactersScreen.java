@@ -26,6 +26,7 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.world.entity.player.PlayerSkin;
+import net.minecraft.world.level.storage.LevelResource;
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
 
@@ -325,13 +326,14 @@ public class CharactersScreen extends Screen {
 
     /**
      * Time played as the account, added up over every world: without a character each world keeps the
-     * account's statistics itself, in {@code stats/<uuid>.json}. Characters' statistics are kept elsewhere,
+     * account's statistics itself, in {@code players/stats/<uuid>.json}. Characters' statistics are kept elsewhere,
      * so they are not counted.
      */
     private long accountPlayTimeTicks() {
         String statsName = this.minecraft.getUser().getProfileId() + ".json";
         try (Stream<Path> worlds = Files.list(this.minecraft.getLevelSource().getBaseDir())) {
-            return worlds.mapToLong(world -> CharacterStorage.playTimeTicks(world.resolve("stats").resolve(statsName))).sum();
+            return worlds.mapToLong(world -> CharacterStorage.playTimeTicks(
+                    world.resolve(LevelResource.PLAYER_STATS_DIR.id()).resolve(statsName))).sum();
         } catch (IOException _) {
             return 0L;
         }
